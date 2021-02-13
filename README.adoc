@@ -85,7 +85,7 @@ We support the creation of multiple files from the same source, so we can have m
 and we use the chunk title to represents the name of the file to be created by each root chunk..
 
 The natural data structure to store chunks (be them generic or root chunks) is a `Hash`
-that maps the title (a `String`) to the content (an `Array` of ``String``s).
+that maps the title (a `String`) to the content (an `Array`).
 For the processor we need to declare two such hashes:
 `@chunks` will hold the generic code chunks, while `@roots` will hold _root chunks_.
 
@@ -176,12 +176,16 @@ but by passing the chunk contents itself we can simplify the logic of the method
 the names of the chunks we're in the middle of processing:: this is a `Set` to which chunk names
 are added when entering the method and removed on exit, and it is used to detect circular references.
 
+The chunk contents is an `Array` whose elements are either ``String``s (the actual chunk lines)
+or ``Asciidoctor::Reader::Cursor``s (source line information). We currently skip the latter.
+
 .Tangling...
 [source]
 ----
 def recursive_tangle file, chunk_name, indent, chunk, stack
   stack.add chunk_name
   chunk.each do |line|
+    next if line.is_a? Asciidoctor::Reader::Cursor
     ref, new_indent = is_chunk_ref line
     if ref
       # must not be in the stack
@@ -271,7 +275,7 @@ def process_block block
   <<Determine chunk type and title, setting chunk_hash and chunk_title>>
 
   @chunk_names.add chunk_title
-  # append the lines TODO preprocessor directives for file and line
+  <<Track source location information>>
   chunk_hash[chunk_title] += block.lines
 
   <<Check for references and prime the chunk names>>
@@ -335,6 +339,31 @@ block.lines.each do |line|
 end
 ----
 
+For each block composing a chunk we want to keep track of where it was defined,
+so that this information can be added to the output file if requested.
+We do this by pushing the `source_location` metadata of each block
+into the corresponding chunk `Array`, right before the corresponding lines:
+
+.Track source location...
+[source]
+----
+chunk_hash[chunk_title].append(block.source_location)
+----
+
+For this to work correctly, we need to enable the `sourcemap` feature for the document,
+which should be done at the preprocessing stage:
+
+.Enable sourcemap
+[source]
+----
+preprocessor do
+  process do |doc, reader|
+    doc.sourcemap = true
+    nil
+  end
+end
+----
+
 === Document processing
 
 The document as a whole is processed simply by processing all the listing blocks,
@@ -368,6 +397,7 @@ with Asciidoctor:
 <<Main class...>>
 
 Asciidoctor::Extensions.register do
+  <<Enable sourcemap>>
   tree_processor LiterateProgrammingTreeProcessor
 end
 ----
