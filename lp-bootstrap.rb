@@ -3,7 +3,7 @@ require 'asciidoctor/extensions'
 class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
   def initialize config
     super config
-    @roots = Hash.new
+    @roots = Hash.new { |hash, key| hash[key] = [] }
     @chunks = Hash.new { |hash, key| hash[key] = [] }
     @chunk_names = Set.new
   end

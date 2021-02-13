@@ -4,23 +4,31 @@ Giuseppe Bilotta <giuseppe.bilotta@gmail.com>
 :sectnums:
 :icons: font
 :toc: left
-:stem:
 // Styling
 :source-highlighter: rouge
 :source-language: ruby
-// URLs
-:url-asciidoctor: https://www.asciidoctor.org/
-:url-eweb: http://eweb.sourceforge.net/
+// Long URLs
 :url-mrt: http://repos.modelrealization.com/cgi-bin/fossil/mrtools/wiki?name=asciidoc+literate+programming
 
 == What is this?
 
-This is a (Ruby) module to add literate programming support in {url-asciidoctor}[AsciiDoctor].
+This is a (Ruby) module to add https://en.wikipedia.org/Literate+programming[literate programming] support to https://www.asciidoctor.org/[AsciiDoctor].
+
+In short, literate programming is an approach to writing software and its documentation by prioritizing human language.
+A literate programming “source” is composed by text in some documentation system (in this case, AsciiDoctor's flavor of AsciiDoc) that describes the logic,
+with interspersed code snippets whose union constitutes the source code as it will be passed to the compiler.
+
+The process of creating the code from the snippets is known as <<tangling>>, while the extraction of the documentation is known as weaving.
+The literate programming support we're introducing in AsciiDoctor with this module does not require a separate weaving step,
+since the source document is assumed to be a valid AsciiDoctor document,
+and should therefore be processable as-is from the standard compiler, even without special modules.
+
+(In fact, this `README.adoc` file is itself a literate-programming source for the module itself.)
 
 == Why is this?
 
-Previous effort to introduce literate programming features in the AsciiDoc format include
-{url-eweb}[eWEB] and the {url-mrt}[Model Realization Tools]' `atangle` and `aweave` programs.
+There are previous effort to introduce literate programming features in the AsciiDoc format, including
+http://eweb.sourceforge.net/[eWEB] and the {url-mrt}[Model Realization Tools]' `atangle` and `aweave` programs.
 So why do we need another one?
 
 More features:: most importantly, support the creation of multiple files from a single document, a feauture that is missing from the existing tools;
@@ -34,9 +42,9 @@ the plan is to also include cross-referencing and indexing for the code chunks (
 
 == How is this?
 
-The module is implemented as an https://docs.asciidoctor.org/asciidoctor.js/latest/extend/extensions/register/[Asciidoctor extension].
-Since we are only interested in producing secondary outputs, we implement a `TreeProcessor`,
-that will traverse the document tree to gather all listing blocks that define chunks.
+The module is implemented as an https://docs.asciidoctor.org/asciidoctor/latest/extensions/[Asciidoctor extension].
+Since we are only interested in producing secondary outputs, we implement a https://docs.asciidoctor.org/asciidoctor/latest/extensions/tree-processor/[`TreeProcessor`],
+that will traverse the document tree to gather all blocks that define chunks.
 
 .Main class definition
 [source]
@@ -49,43 +57,66 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
 end
 ----
 
-which of course requires the `asciidoctor/extensions` Ruby module that defines the `Asciidoctor::Extensions::TreeProcessor` class.
+which of course requires the `asciidoctor/extensions` Ruby module that defines the `Asciidoctor::Extensions::TreeProcessor` class:
 
 .Requires
 [source]
 require 'asciidoctor/extensions'
 
-Each chunk is identified by a title, and the corresponding source code may be split across multiple listing blocks.
-The first time a chunk title is encountered (be it to define or to use it), it must be written out in full.
-In all other circumstances, it may be shortened to any _unambiguous_ prefix followed by an ellipsis (three dots: `...`).
+=== Chunk management
 
-The processor stores chunks in a `Hash` that the title (a `String`) to the content
-(an `Array` of ``String``s). We declare two such hashes: `@chunks` will hold the generic code chunks,
-while `@roots` will hold _root chunks_, i.e. chunks that define the outer structure of
-each output file generated during the <<tangling>> process.
+Each chunk is identified by a title, and the corresponding source code may be split across multiple blocks.
+The (final) content of a chunk is obtained by the concatenation of all the blocks with the same title.
+
+The title of the chunk is used as a handle, that can be referenced by other chunks to declare that
+the content of the referenced chunk should be inlined in the referencing chunk (this inlining process is known as <<tangling>>).
+A special kind of chunk is the _root chunk_, that is not referenced by any other chunk and whose title
+represents the name of the file to be created.
+We support the creation of multiple files from the same source, so we can have multiple root chunks.
+
+The natural data structure to store chunks (be them generic or root chunks) is a `Hash`
+that maps the title (a `String`) to the content (an `Array` of ``String``s).
+For the processor we need to declare two such hashes:
+`@chunks` will hold the generic code chunks, while `@roots` will hold _root chunks_.
 
 Since the source code associated with a generic chunk can be spread out over multiple blocks,
 we define a default value constructor for `@chunks`: this will simplify the
 process of appending new lines to a value each time we come across a new block.
-
-To assist in the handling of shortened chunk titles, we keep track of all the (full) titles we've come across
-so far.
+The root chunk is assumed to be unique per file (i.e. per title), but we still provide the same default value constructor,
+since this will allow us handle the extraction in the same way for both types.
+Uniqueness of root chunks will be handled explicitly.
 
 .Class init...
 [source]
 ----
 def initialize config
   super config # <1>
-  @roots = Hash.new
+  @roots = Hash.new { |hash, key| hash[key] = [] }
   @chunks = Hash.new { |hash, key| hash[key] = [] }
-  @chunk_names = Set.new
+  <<Other variables>>
 end
 ----
 <1> Rember to call the initializer of the superclass, or the custom processor won't work!
 
-We need a way to find the full title when given a shortened version. This is achieved simply by finding
-the keys in `@chunks` that match the given prefix, which we obtain by removing the trailing ellipsis if present.
-If no key is found, or if multiple keys are found, an appropriate exception is raised.
+Chunk titles have no particular syntax restriction, but are conventionally a natural language (synthetic) descriptions of the chunk intended use.
+As this can get on the longish side, and typing them multiple times can be time-consuming and error-prone,
+they can be shortened to any _unambiguous_ prefix followed by an ellipsis (three dots: `...`).
+For example, a chunk may be titled `Automagical creation of bug-free code`, and this may be shortened to `Automagic...`
+if there are no other chunks whose title begins with `Automagic`.
+We do require that _the first time a chunk title is encountered_ (be it to define it or as a reference in another chunk),
+_it must be written out in full_.
+
+To assist in the handling of shortened chunk titles, we keep track of all the (full) titles we've come across
+so far:
+
+.Other variables
+[source]
+----
+@chunk_names = Set.new
+----
+
+and we provide a support method that will take a (possibly shortened) chunk title and return the full title,
+raising an exception if we do not find one (and only one) chunk title starting with the given prefix:
 
 .Support...
 [source]
@@ -101,9 +132,14 @@ def full_title string
 end
 ----
 
-Chunks may reference other chunks.
-This is achieved by putting `<<Chunk name (possibly shortened)>>` on a line of its own
-(optionally surrounded by whitespace).
+=== Tangling [[tangling]]
+
+Tangling is the process of “stitching together” all the code blocks, recursively following the
+referenced chunks starting from the root chunk, for each file.
+
+References to other chunks are identified by a chunk title written between double angle brackets
+(e.g. `<<(Possibly shortened) chunk title>>`)
+on a line of its own, optionally surrounded by whitespace.
 When processing chunks line by line, we may want to check if a particular line is a chunk reference,
 and if so we'll want the full name of the chunk. This is achieved by the `is_chunk_ref` method:
 
@@ -119,17 +155,17 @@ def is_chunk_ref line
 end
 ----
 
+The recursive tangling of chunks is achieved by starting at the root chunk,
+outputting any line that is not a reference to another chunk, and recursively calling
+the function any time a reference is encountered.
 
-=== Tangling [[tangling]]
-
-Tangling is the process of “stitching together” all the code blocks, recursively following the
-referenced chunks starting from the root chunk, for each file.
-
-The recursive tangling of chunks is achieved by a method that takes as input a `File` object
-(where data will be written), the name of the current chunk being processed,
-the contents of the chunk itself (`Array` of lines), and finally
-a `Set` holding the names of all the chunks we're in the middle of processing. The latter is needed
-to avoid infinite recursions due to chunks cyclically refrencing each other.
+The data we need to keep track of during the recursion are:
+the output stream:: to which we are writing the lines,
+the title of the chunk being processed:: to detect circular references and produce meaningful error messages,
+the contents of the chunk being processed:: this could be obtained knowing the chunk name _and_ the chunk type,
+but by passing the chunk contents itself we can simplify the logic of the method,
+the names of the chunks we're in the middle of processing:: this is a `Set` to which chunk names
+are added when entering the method and removed on exit, and it is used to detect circular references.
 
 .Tangling...
 [source]
@@ -169,12 +205,19 @@ end
 
 === Collecting chunks
 
-A single block is processed if it has `source` style, in which case
-we append its lines to the `Array` of lines of the corresponding chunk.
-We also need to determine its type (root or generic chunk) to choose where the chunk will be stored.
+AsciiDoc's syntax allows us to forego special syntax to identify code chunks: we assume
+that any `listing` block in the `source` style is (part of) a code chunk.
 
-After appending the lines to the chunk, we also check if any line is a chunk reference,
-in which case we “prime” the `@chunk_names`, to allow subsequent usage of the chunk name in shortened form.
+When we will add compatibility with the other AsciiDoc-based literate
+programming tools, we will also support generic `listing` blocks, with a slightly
+different syntax.
+
+Processing of a single block requires us to identify the chunk type (root or generic)
+and title, add the title to the known chunk titles (if necessary) and append the
+block lines to the chunk contents.
+We also check if any of the lines we're adding contain a reference to another chunk,
+and if so add the title to the list of known titles, to allow shortened names
+to be used henceforth.
 
 .Processing...
 [source]
@@ -182,8 +225,7 @@ in which case we “prime” the `@chunk_names`, to allow subsequent usage of th
 def process_block block
   <<Determine chunk type and title, setting chunk_hash and chunk_title>>
 
-    @chunk_names.add chunk_title
-
+  @chunk_names.add chunk_title
   # append the lines TODO preprocessor directives for file and line
   chunk_hash[chunk_title] += block.lines
 
@@ -191,7 +233,7 @@ def process_block block
 end
 ----
 
-A source block defines a generic chunk, unless it has the `output` attribute set,
+A `source` block defines a generic chunk, unless it has the `output` attribute set,
 in which case it's a root chunk:
 
 .Determine...
@@ -203,10 +245,7 @@ if block.style == "source"
   if block.attributes.has_key? 'output'
     <<Handle root chunk>>
   else
-    # We use the block title (TODO up to the first full stop or colon) as chunk name
-    title = block.attributes['title']
-    chunk_title = full_title title
-    # TODO override block title if it was a shorthand prefix
+    <<Handle generic chunk>>
   end
 else
   # TODO check if first line is <<title>>=
@@ -226,7 +265,19 @@ raise ArgumentError, "Duplicate root chunk for #{chunk_title}" if chunk_hash.has
 chunk_hash[chunk_title] = []
 ----
 
-Regardless of the chunk type, we scan the lines of the block we're processing, and add any
+For a generic chunk, we leave `chunk_hash` at the default value, and set the `chunk_title`
+from the `title` attribute of the block.
+
+.Handle generic chunk
+[source]
+----
+# We use the block title (TODO up to the first full stop or colon) as chunk name
+title = block.attributes['title']
+chunk_title = full_title title
+# TODO override block title if it was a shorthand prefix
+----
+
+Regardless of the chunk type, processing is finished by scanning the lines of the block, to add any
 referenced chunk name to `@chunk_names`:
 
 .Check for references...
