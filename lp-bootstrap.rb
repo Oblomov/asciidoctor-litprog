@@ -1,3 +1,6 @@
+# Copyright (C) 2021 Giuseppe Bilotta <giuseppe.bilotta@gmail.com>
+# This software is licensed under the MIT license. See LICENSE for details
+
 require 'asciidoctor/extensions'
 
 class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor

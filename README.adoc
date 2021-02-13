@@ -327,6 +327,8 @@ with Asciidoctor:
 .The module structure
 [source,output=literate-programming.rb]
 ----
+<<Licensing statement>>
+
 <<Requires>>
 
 <<Main class...>>
@@ -336,3 +338,14 @@ Asciidoctor::Extensions.register do
 end
 ----
 
+== Copyright and licensing information
+
+The software is copyright (C) 2021 by {author}, and is made available under the MIT license.
+See the `LICENSE` file for further details.
+
+.Licensing...
+[source]
+----
+# Copyright (C) 2021 Giuseppe Bilotta <giuseppe.bilotta@gmail.com>
+# This software is licensed under the MIT license. See LICENSE for details
+----
