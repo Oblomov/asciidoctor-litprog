@@ -145,14 +145,14 @@ References to other chunks are identified by a chunk title written between doubl
 (e.g. `<<(Possibly shortened) chunk title>>`)
 on a line of its own, optionally surrounded by whitespace.
 When processing chunks line by line, we may want to check if a particular line is a chunk reference,
-and if so we'll want the full name of the chunk. This is achieved by the `is_chunk_ref` method:
+and if so we'll want the full name of the chunk, as well as any indenting that precedes the reference:
 
 .Support...
 [source]
 ----
 def is_chunk_ref line
-  if line.match /^\s*<<(.*)>>\s*$/
-    return full_title $1
+  if line.match /^(\s*)<<(.*)>>\s*$/
+    return full_title($2), $1
   else
     return false
   end
@@ -166,6 +166,7 @@ the function any time a reference is encountered.
 The data we need to keep track of during the recursion are:
 the output stream:: to which we are writing the lines,
 the title of the chunk being processed:: to detect circular references and produce meaningful error messages,
+the current indent:: added to all lines being output,
 the contents of the chunk being processed:: this could be obtained knowing the chunk name _and_ the chunk type,
 but by passing the chunk contents itself we can simplify the logic of the method,
 the names of the chunks we're in the middle of processing:: this is a `Set` to which chunk names
@@ -174,19 +175,18 @@ are added when entering the method and removed on exit, and it is used to detect
 .Tangling...
 [source]
 ----
-def recursive_tangle file, chunk_name, chunk, stack
+def recursive_tangle file, chunk_name, indent, chunk, stack
   stack.add chunk_name
   chunk.each do |line|
-    ref = is_chunk_ref line
+    ref, new_indent = is_chunk_ref line
     if ref
       # must not be in the stack
       raise RuntimeError, "Recursive reference to #{ref} from #{chunk_name}" if stack.include? ref
       # must be defined
       raise ArgumentError, "Found reference to undefined chunk #{ref}" unless @chunks.has_key? ref
-      # TODO whitespace handling
-      recursive_tangle file, ref, @chunks[ref], stack
+      recursive_tangle file, ref, indent + new_indent, @chunks[ref], stack
     else
-      file.puts line
+      file.puts indent + line
     end
   end
   stack.delete chunk_name
@@ -201,7 +201,7 @@ This needs to be done for each root chunk defined by the document:
 def tangle
   @roots.each do |name, initial_chunk|
     File.open(name, 'w') do |f|
-      recursive_tangle f, name, initial_chunk, Set[]
+      recursive_tangle f, name, '', initial_chunk, Set[]
     end
   end
 end
@@ -288,7 +288,7 @@ referenced chunk name to `@chunk_names`:
 [source]
 ----
 block.lines.each do |line|
-  mentioned = is_chunk_ref line
+  mentioned, _ = is_chunk_ref line
   @chunk_names.add mentioned if mentioned
 end
 ----

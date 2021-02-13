@@ -1,7 +1,7 @@
 require 'asciidoctor/extensions'
 
 class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
-  def initialize config
+  def initialize config = {}
     super config
     @roots = Hash.new { |hash, key| hash[key] = [] }
     @chunks = Hash.new { |hash, key| hash[key] = [] }
@@ -19,26 +19,25 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
   end
 
   def is_chunk_ref line
-    if line.match /^\s*<<(.*)>>\s*$/
-      return full_title $1
+    if line.match /^(\s*)<<(.*)>>\s*$/
+      return full_title($2), $1
     else
       return false
     end
   end
 
-  def recursive_tangle file, chunk_name, chunk, stack
+  def recursive_tangle file, chunk_name, indent, chunk, stack
     stack.add chunk_name
     chunk.each do |line|
-      ref = is_chunk_ref line
+      ref, new_indent = is_chunk_ref line
       if ref
         # must not be in the stack
         raise RuntimeError, "Recursive reference to #{ref} from #{chunk_name}" if stack.include? ref
         # must be defined
         raise ArgumentError, "Found reference to undefined chunk #{ref}" unless @chunks.has_key? ref
-        # TODO whitespace handling
-        recursive_tangle file, ref, @chunks[ref], stack
+        recursive_tangle file, ref, indent + new_indent, @chunks[ref], stack
       else
-        file.puts line
+        file.puts indent + line
       end
     end
     stack.delete chunk_name
@@ -47,7 +46,7 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
   def tangle
     @roots.each do |name, initial_chunk|
       File.open(name, 'w') do |f|
-        recursive_tangle f, name, initial_chunk, Set[]
+        recursive_tangle f, name, '', initial_chunk, Set[]
       end
     end
   end
@@ -76,9 +75,8 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
 
     # append the lines TODO preprocessor directives for file and line
     chunk_hash[chunk_title] += block.lines
-    # check if they mentioned new chunk titles
     block.lines.each do |line|
-      mentioned = is_chunk_ref line
+      mentioned, _ = is_chunk_ref line
       @chunk_names.add mentioned if mentioned
     end
   end
@@ -96,4 +94,3 @@ end
 Asciidoctor::Extensions.register do
   tree_processor LiterateProgrammingTreeProcessor
 end
-
