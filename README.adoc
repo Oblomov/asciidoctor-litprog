@@ -273,7 +273,6 @@ we also verify that the same file name (i.e. chunk title) is not already defined
 chunk_hash = @roots
 chunk_title = block.attributes['output']
 raise ArgumentError, "Duplicate root chunk for #{chunk_title}" if chunk_hash.has_key?(chunk_title)
-chunk_hash[chunk_title] = []
 ----
 
 For a generic chunk, we leave `chunk_hash` at the default value, and set the `chunk_title`

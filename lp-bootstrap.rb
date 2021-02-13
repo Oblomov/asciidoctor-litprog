@@ -59,7 +59,6 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
         chunk_hash = @roots
         chunk_title = block.attributes['output']
         raise ArgumentError, "Duplicate root chunk for #{chunk_title}" if chunk_hash.has_key?(chunk_title)
-        chunk_hash[chunk_title] = []
       else
         # We use the block title (TODO up to the first full stop or colon) as chunk name
         title = block.attributes['title']
