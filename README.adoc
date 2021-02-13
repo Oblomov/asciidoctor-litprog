@@ -47,7 +47,7 @@ Since we are only interested in producing secondary outputs, we implement a http
 that will traverse the document tree to gather all blocks that define chunks.
 
 The processor needs to track some state, so it needs a constructor to initialize it properly. AsciiDoctor
-processors take a config on construction, so we follow the convention, although we do not (at present)
+processors take a configuration `Hash` on construction, so we follow the convention, although we do not (at present)
 make use of any configuration.
 
 .Main class definition
@@ -66,7 +66,7 @@ end
 ----
 <1> Rember to call the initializer of the superclass, or the custom processor won't work!
 
-which of course requires the `asciidoctor/extensions` Ruby module that defines the `Asciidoctor::Extensions::TreeProcessor` class:
+Of course, we need to require the `asciidoctor/extensions` Ruby module to have the `Asciidoctor::Extensions::TreeProcessor` class available:
 
 .Requires
 [source]
@@ -79,9 +79,9 @@ The (final) content of a chunk is obtained by the concatenation of all the block
 
 The title of the chunk is used as a handle, that can be referenced by other chunks to declare that
 the content of the referenced chunk should be inlined in the referencing chunk (this inlining process is known as <<tangling>>).
-A special kind of chunk is the _root chunk_, that is not referenced by any other chunk and whose title
-represents the name of the file to be created.
-We support the creation of multiple files from the same source, so we can have multiple root chunks.
+A special kind of chunk is the _root chunk_, that is not referenced by any other chunk and represents the starting point for the tangling process.
+We support the creation of multiple files from the same source, so we can have multiple root chunks,
+and we use the chunk title to represents the name of the file to be created by each root chunk..
 
 The natural data structure to store chunks (be them generic or root chunks) is a `Hash`
 that maps the title (a `String`) to the content (an `Array` of ``String``s).
@@ -91,9 +91,11 @@ For the processor we need to declare two such hashes:
 Since the source code associated with a generic chunk can be spread out over multiple blocks,
 we define a default value constructor for `@chunks`: this will simplify the
 process of appending new lines to a value each time we come across a new block.
-The root chunk is assumed to be unique per file (i.e. per title), but we still provide the same default value constructor,
-since this will allow us handle the extraction in the same way for both types.
-Uniqueness of root chunks will be handled explicitly during block processing..
+
+The root chunk is assumed to be unique per file (i.e. per title),
+but we still provide the same default value constructor,
+since this will allow us to handle the extraction in the same way for both types.
+Uniqueness of root chunks will be handled explicitly during block processing.
 
 .Declare...
 [source]
@@ -208,7 +210,7 @@ def tangle
 end
 ----
 
-=== Collecting chunks
+=== Collecting chunks [[collecting]]
 
 AsciiDoc's syntax allows us to forego special syntax to identify code chunks: we assume
 that any `listing` block in the `source` style is (part of) a code chunk.
@@ -220,9 +222,13 @@ different syntax.
 Processing of a single block requires us to identify the chunk type (root or generic)
 and title, add the title to the known chunk titles (if necessary) and append the
 block lines to the chunk contents.
-We also check if any of the lines we're adding contain a reference to another chunk,
-and if so add the title to the list of known titles, to allow shortened names
-to be used henceforth.
+Since the default value for missing chunks is an empty `Array`,
+we can append the new lines directly using the `Array#+=` method,
+without special-casing the case for the first block that defines a chunk.
+
+Finally, we check if the new lines reference other chunks,
+and if so we add the title to the list of known titles,
+to allow shortened names to be used henceforth.
 
 .Processing...
 [source]
@@ -259,7 +265,7 @@ end
 ----
 
 For a root chunk, aside from setting `chunk_hash` and `chunk_title` appropriately,
-we also verify that the same file name (i.e. title) is not already defined:
+we also verify that the same file name (i.e. chunk title) is not already defined:
 
 .Handle root chunk
 [source]
