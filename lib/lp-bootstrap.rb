@@ -2,6 +2,7 @@
 # This software is licensed under the MIT license. See LICENSE for details
 
 require 'asciidoctor/extensions'
+require 'fileutils'
 
 class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
   def initialize config = {}
@@ -46,9 +47,14 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
     stack.delete chunk_name
   end
 
-  def tangle
+  def tangle doc
+    docdir = doc.attributes['docdir']
+    outdir = doc.attributes['literate-programming-outdir']
+    outdir = File.join(docdir, outdir)
+    FileUtils.mkdir_p outdir
     @roots.each do |name, initial_chunk|
-      File.open(name, 'w') do |f|
+      full_path = File.join(outdir, name)
+      File.open(full_path, 'w') do |f|
         recursive_tangle f, name, '', initial_chunk, Set[]
       end
     end
@@ -87,7 +93,7 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
     doc.find_by context: :listing do |block|
       process_block block
     end
-    tangle
+    tangle doc
     doc
   end
 

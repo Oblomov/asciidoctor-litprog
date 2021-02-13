@@ -4,6 +4,7 @@ Giuseppe Bilotta <giuseppe.bilotta@gmail.com>
 :sectnums:
 :icons: font
 :toc: left
+:literate-programming-outdir: lib/
 // Styling
 :source-highlighter: rouge
 :source-language: ruby
@@ -201,14 +202,47 @@ This needs to be done for each root chunk defined by the document:
 .Tangling...
 [source]
 ----
-def tangle
+def tangle doc
+  <<Prepare output directory>>
   @roots.each do |name, initial_chunk|
-    File.open(name, 'w') do |f|
+    <<Convert name to full_path>>
+    File.open(full_path, 'w') do |f|
       recursive_tangle f, name, '', initial_chunk, Set[]
     end
   end
 end
 ----
+
+We allow users to specify where the output files should be placed by overriding
+the `literate-programming-outdir` document attribute.
+If defined, this must be a path relative to the `docdir`.
+The output directory is created if not present:
+
+.Prepare...
+[source]
+----
+docdir = doc.attributes['docdir']
+outdir = doc.attributes['literate-programming-outdir']
+outdir = File.join(docdir, outdir)
+FileUtils.mkdir_p outdir
+----
+
+Accessing `FileUtils` introduces a new requirement:
+
+.Requires
+[source]
+----
+require 'fileutils'
+----
+
+When tangling a new file, the name provided by the user is considered relative to the (literate programming) output directory:
+
+.Convert...
+[source]
+----
+full_path = File.join(outdir, name)
+----
+
 
 === Collecting chunks [[collecting]]
 
@@ -313,7 +347,7 @@ def process doc
   doc.find_by context: :listing do |block|
     process_block block
   end
-  tangle
+  tangle doc
   doc
 end
 ----
