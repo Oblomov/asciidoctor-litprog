@@ -64,7 +64,7 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
         # We use the block title (TODO up to the first full stop or colon) as chunk name
         title = block.attributes['title']
         chunk_title = full_title title
-        # TODO override block title if it was a shorthand prefix
+        block.title = chunk_title if title != chunk_title
       end
     else
       # TODO check if first line is <<title>>=

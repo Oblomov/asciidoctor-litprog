@@ -272,6 +272,8 @@ chunk_hash[chunk_title] = []
 
 For a generic chunk, we leave `chunk_hash` at the default value, and set the `chunk_title`
 from the `title` attribute of the block.
+If the block title was shortened, we also replace the block title with the full chunk title,
+to improve the legibility of the documentation.
 
 .Handle generic chunk
 [source]
@@ -279,7 +281,7 @@ from the `title` attribute of the block.
 # We use the block title (TODO up to the first full stop or colon) as chunk name
 title = block.attributes['title']
 chunk_title = full_title title
-# TODO override block title if it was a shorthand prefix
+block.title = chunk_title if title != chunk_title
 ----
 
 Regardless of the chunk type, processing of the block is finished by scanning the lines of the block, to add any
