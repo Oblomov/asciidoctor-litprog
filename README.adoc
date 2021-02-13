@@ -176,25 +176,38 @@ but by passing the chunk contents itself we can simplify the logic of the method
 the names of the chunks we're in the middle of processing:: this is a `Set` to which chunk names
 are added when entering the method and removed on exit, and it is used to detect circular references.
 
-The chunk contents is an `Array` whose elements are either ``String``s (the actual chunk lines)
-or ``Asciidoctor::Reader::Cursor``s (source line information). We currently skip the latter.
+The `chunk` is an `Array` whose elements are either ``String``s (the actual chunk lines)
+or ``Asciidoctor::Reader::Cursor``s (source line information). We use the latter to generate
+`#line` directives every time we enter or exit the recusion.
 
 .Tangling...
 [source]
 ----
 def recursive_tangle file, chunk_name, indent, chunk, stack
   stack.add chunk_name
+  fname = ''
+  lineno = 0
   chunk.each do |line|
-    next if line.is_a? Asciidoctor::Reader::Cursor
-    ref, new_indent = is_chunk_ref line
-    if ref
-      # must not be in the stack
-      raise RuntimeError, "Recursive reference to #{ref} from #{chunk_name}" if stack.include? ref
-      # must be defined
-      raise ArgumentError, "Found reference to undefined chunk #{ref}" unless @chunks.has_key? ref
-      recursive_tangle file, ref, indent + new_indent, @chunks[ref], stack
+    case line
+    when Asciidoctor::Reader::Cursor
+      fname = line.file
+      lineno = line.lineno + 1
+      file.puts('#line %{lineno} "%{file}"' % { lineno: lineno, file: fname})
+    when String
+      lineno += 1
+      ref, new_indent = is_chunk_ref line
+      if ref
+        # must not be in the stack
+        raise RuntimeError, "Recursive reference to #{ref} from #{chunk_name}" if stack.include? ref
+        # must be defined
+        raise ArgumentError, "Found reference to undefined chunk #{ref}" unless @chunks.has_key? ref
+        recursive_tangle file, ref, indent + new_indent, @chunks[ref], stack
+        file.puts('#line %{lineno} "%{file}"' % { lineno: lineno, file: fname})
+      else
+        file.puts indent + line
+      end
     else
-      file.puts indent + line
+      raise TypeError, "Unknown chunk element #{line.inspect}"
     end
   end
   stack.delete chunk_name

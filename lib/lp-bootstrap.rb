@@ -32,16 +32,29 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
 
   def recursive_tangle file, chunk_name, indent, chunk, stack
     stack.add chunk_name
+    fname = ''
+    lineno = 0
     chunk.each do |line|
-      ref, new_indent = is_chunk_ref line
-      if ref
-        # must not be in the stack
-        raise RuntimeError, "Recursive reference to #{ref} from #{chunk_name}" if stack.include? ref
-        # must be defined
-        raise ArgumentError, "Found reference to undefined chunk #{ref}" unless @chunks.has_key? ref
-        recursive_tangle file, ref, indent + new_indent, @chunks[ref], stack
+      case line
+      when Asciidoctor::Reader::Cursor
+        fname = line.file
+        lineno = line.lineno + 1
+        file.puts('#line %{lineno} "%{file}"' % { lineno: lineno, file: fname})
+      when String
+        lineno += 1
+        ref, new_indent = is_chunk_ref line
+        if ref
+          # must not be in the stack
+          raise RuntimeError, "Recursive reference to #{ref} from #{chunk_name}" if stack.include? ref
+          # must be defined
+          raise ArgumentError, "Found reference to undefined chunk #{ref}" unless @chunks.has_key? ref
+          recursive_tangle file, ref, indent + new_indent, @chunks[ref], stack
+          file.puts('#line %{lineno} "%{file}"' % { lineno: lineno, file: fname})
+        else
+          file.puts indent + line
+        end
       else
-        file.puts indent + line
+        raise TypeError, "Unknown chunk element #{line.inspect}"
       end
     end
     stack.delete chunk_name
@@ -80,9 +93,9 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
     end
 
     @chunk_names.add chunk_title
-
-    # append the lines TODO preprocessor directives for file and line
+    chunk_hash[chunk_title].append(block.source_location)
     chunk_hash[chunk_title] += block.lines
+
     block.lines.each do |line|
       mentioned, _ = is_chunk_ref line
       @chunk_names.add mentioned if mentioned
@@ -96,9 +109,14 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
     tangle doc
     doc
   end
-
 end
 
 Asciidoctor::Extensions.register do
+  preprocessor do
+    process do |doc, reader|
+      doc.sourcemap = true
+      nil
+    end
+  end
   tree_processor LiterateProgrammingTreeProcessor
 end
