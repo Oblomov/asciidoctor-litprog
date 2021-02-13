@@ -163,7 +163,8 @@ The recursive tangling of chunks is achieved by starting at the root chunk,
 outputting any line that is not a reference to another chunk, and recursively calling
 the function any time a reference is encountered.
 
-The data we need to keep track of during the recursion are:
+The state we need to keep track of during the recursion is composed of:
+
 the output stream:: to which we are writing the lines,
 the title of the chunk being processed:: to detect circular references and produce meaningful error messages,
 the current indent:: added to all lines being output,
