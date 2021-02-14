@@ -6,6 +6,8 @@ Giuseppe Bilotta <giuseppe.bilotta@gmail.com>
 :toc: left
 :literate-programming-outdir: lib/
 // Styling
+:linkcss:
+:stylesdir: css
 :source-highlighter: rouge
 :source-language: ruby
 // Long URLs
