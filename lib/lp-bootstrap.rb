@@ -21,7 +21,9 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
     raise ArgumentError, "Chunk title #{string} is not unique" if hits.length > 1
     hits.first
   end
-
+  def output_line_directive file, fname, lineno
+    file.puts('#line %{lineno} "%{file}"' % { lineno: lineno, file: fname})
+  end
   def is_chunk_ref line
     if line.match /^(\s*)<<(.*)>>\s*$/
       return full_title($2), $1
@@ -29,7 +31,6 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
       return false
     end
   end
-
   def recursive_tangle file, chunk_name, indent, chunk, stack
     stack.add chunk_name
     fname = ''
@@ -39,7 +40,7 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
       when Asciidoctor::Reader::Cursor
         fname = line.file
         lineno = line.lineno + 1
-        file.puts('#line %{lineno} "%{file}"' % { lineno: lineno, file: fname})
+        output_line_directive(file, fname, lineno)
       when String
         lineno += 1
         ref, new_indent = is_chunk_ref line
@@ -49,7 +50,7 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
           # must be defined
           raise ArgumentError, "Found reference to undefined chunk #{ref}" unless @chunks.has_key? ref
           recursive_tangle file, ref, indent + new_indent, @chunks[ref], stack
-          file.puts('#line %{lineno} "%{file}"' % { lineno: lineno, file: fname})
+          output_line_directive(file, fname, lineno)
         else
           file.puts line.empty? ? line : indent + line
         end
@@ -59,7 +60,6 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
     end
     stack.delete chunk_name
   end
-
   def tangle doc
     docdir = doc.attributes['docdir']
     outdir = doc.attributes['literate-programming-outdir']
@@ -72,7 +72,6 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
       end
     end
   end
-
   def process_block block
     chunk_hash = @chunks
     if block.style == "source"
@@ -101,7 +100,6 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
       @chunk_names.add mentioned if mentioned
     end
   end
-
   def process doc
     doc.find_by context: :listing do |block|
       process_block block
