@@ -5,6 +5,7 @@ Giuseppe Bilotta <giuseppe.bilotta@gmail.com>
 :icons: font
 :toc: left
 :literate-programming-outdir: lib/
+:literate-programming-line-template:
 // Styling
 :linkcss:
 :stylesdir: css
@@ -158,16 +159,48 @@ as detailed in the <<collecting>> section.
 
 === Metadata output
 
-The origin information for a block can be used to add appropriate metadata to
-the output files.
-Currently we support writing a C-style `#line` directive for a
-given filename `fname` and line number `lineno`:
+The origin information for a block can be used to add appropriate metadata to the output files.
+The template used to print the line information is stored in the member variable `@line_directive`,
+whose default value follows the C-style `#line` directive.
+
+.Declare...
+[source]
+----
+@line_directive = { default: '#line %{line} "%{file}"' }
+----
+
+The user can override this by setting the `literate-programming-line-template` document attribute to any string,
+where the `%{line}` and `%{file}` keywords will be replaced by the source line number and file name, respectively.
+Setting it to the empty string disables the output line directive output.
+
+IMPORTANT: If `literate-programming-line-template` is _unset_, the default line template will be used.
+This is why the output is disabled only if the attribute is _set_ to an empty string.
+
+.Set line directive
+[source]
+----
+line_template = doc.attributes['literate-programming-line-template']
+if line_template # attribute is set
+  @line_directive[:default] = line_template
+end
+----
+
+As an example, for languages that do not have built-in support for a line directive,
+a vim-friendly solution for code navigation would be:
+
+.Example of line template setting
+----
+:literate-programming-line-template: # %{file}:%{line}
+----
+
+
+The actual output of the line directive is encapsulated in the `output_line_directive` method:
 
 .Support...
 [source]
 ----
 def output_line_directive file, fname, lineno
-  file.puts('#line %{lineno} "%{file}"' % { lineno: lineno, file: fname})
+  file.puts(@line_directive[:default] % { line: lineno, file: fname}) unless @line_directive[:default].empty?
 end
 ----
 
@@ -282,6 +315,7 @@ The recursive tangling process must be repeated for each root chunk  defined by 
 [source]
 ----
 def tangle doc
+  <<Set line directive>>
   <<Prepare output directory>>
   @roots.each do |name, initial_chunk|
     <<Convert name to full_path>>
@@ -503,12 +537,13 @@ this will require adjusting the cursor offset for the `lineno` feature based on 
 it will also require support inline chunk reference exapnsion, and for `@<<` / `@>>` escaping.
 
 `lineno` configuration::
-user should be able to enable/disable the feature, and to set the output template;
-this configuration should be global, with the possibility to provide per-file or per-language overrides.
+** global setting implemented via `literate-programming-line-template` document attribute;
+** missing: per-file or per-language overrides;
+this shold be doable adding other keys to the  `@line_directive` hash
 
 auto-indent configuration::
 the preservation of leading whitespace during tangling should be optional
-(again, globally + per-file / per-language overrides).
+(again, globally + per-file / per-language and possibly per-chunk overrides).
 
 hyperlinks::
 references to other chunks should be transformable into hyperlinks to the blocks defining the chunk,

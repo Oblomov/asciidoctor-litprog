@@ -10,6 +10,7 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
     @roots = Hash.new { |hash, key| hash[key] = [] }
     @chunks = Hash.new { |hash, key| hash[key] = [] }
     @chunk_names = Set.new
+    @line_directive = { default: '#line %{line} "%{file}"' }
   end
 
   def full_title string
@@ -22,7 +23,7 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
     hits.first
   end
   def output_line_directive file, fname, lineno
-    file.puts('#line %{lineno} "%{file}"' % { lineno: lineno, file: fname})
+    file.puts(@line_directive[:default] % { line: lineno, file: fname}) unless @line_directive[:default].empty?
   end
   def is_chunk_ref line
     if line.match /^(\s*)<<(.*)>>\s*$/
@@ -61,6 +62,10 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
     stack.delete chunk_name
   end
   def tangle doc
+    line_template = doc.attributes['literate-programming-line-template']
+    if line_template # attribute is set
+      @line_directive[:default] = line_template
+    end
     docdir = doc.attributes['docdir']
     outdir = doc.attributes['literate-programming-outdir']
     outdir = File.join(docdir, outdir)
