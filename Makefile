@@ -3,6 +3,9 @@ README.html: README.adoc lib/lp-bootstrap.rb
 
 lib/literate-programming.rb: README.html
 
+update-bootstrap: lib/literate-programming.rb
+	grep -v '^#line' $< > lib/lp-bootstrap.rb
+
 self-check: lib/literate-programming.rb
 	mv lib/literate-programming.rb lib/lp-test.rb && \
 	asciidoctor --trace -Ilib -rlp-test.rb README.adoc -o README.html && \
@@ -11,5 +14,9 @@ self-check: lib/literate-programming.rb
 
 test: self-check
 
+update-bootstrap: lib/lp-bootstrap.rb
+
 clean:
 	rm -f README.html literate-programming.rb lp-test.rb
+
+.PHONY: self-check test update-bootstrap clean
