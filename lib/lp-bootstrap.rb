@@ -51,7 +51,7 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
           recursive_tangle file, ref, indent + new_indent, @chunks[ref], stack
           file.puts('#line %{lineno} "%{file}"' % { lineno: lineno, file: fname})
         else
-          file.puts indent + line
+          file.puts line.empty? ? line : indent + line
         end
       else
         raise TypeError, "Unknown chunk element #{line.inspect}"

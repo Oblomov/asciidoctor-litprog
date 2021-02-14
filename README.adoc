@@ -252,7 +252,8 @@ In the reference case, we check for circular references or references to undefin
 After returning from the referenced chunk, we output a new line directive,
 so that subsequent lines from the current chunk have correct origin information metadata.
 
-If the line is not a reference, we just output it as-is, preserving indent.
+If the line is not a reference, we just output it as-is, preserving indent,
+except for empty strings, in which case the indent is not added.
 
 .String case
 [source]
@@ -268,7 +269,7 @@ when String
     recursive_tangle file, ref, indent + new_indent, @chunks[ref], stack
     output_line_directive(file, fname, lineno)
   else
-    file.puts indent + line
+    file.puts line.empty? ? line : indent + line
   end
 ----
 
@@ -488,13 +489,6 @@ See the `LICENSE` file for further details.
 == Missing features and known issues
 
 // I would have loved to use description checklists, but Asciidoctor doesn't seem to support those yet ...
-
-.Annoyances
-empty lines in chunks are output with leading whitespace::
-nested chunks output all lines with a leading whitespace, even if the line itself is empty;
-this should be avoided
-(or at most be configurable, since the significance of this whitespace depends on the output language).
-
 
 .TODO list
 improve chunk title parsing::
