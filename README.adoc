@@ -45,18 +45,21 @@ the plan is to also include cross-referencing and indexing for the code chunks (
 
 The module is implemented as an https://docs.asciidoctor.org/asciidoctor/latest/extensions/[Asciidoctor extension].
 Since we are only interested in producing secondary outputs, we implement a https://docs.asciidoctor.org/asciidoctor/latest/extensions/tree-processor/[`TreeProcessor`],
-that will traverse the document tree to gather all blocks that define chunks.
+that will traverse the document tree to gather all blocks that define chunks to be output to the secondary files.
 
-The processor needs to track some state, so it needs a constructor to initialize it properly. AsciiDoctor
-processors take a configuration `Hash` on construction, so we follow the convention, although we do not (at present)
-make use of any configuration.
+The processor needs to track some state, so it needs to override the default constructor (`initialize` method)
+to set things up properly.
+AsciiDoctor's processors take a configuration `Hash` on construction,
+so we follow the convention, even though we do not (at present) make use of any configuration,
+and remember to call the superclass' constructor
+(otherwise, the extension won't work properly).
 
 .Main class definition
 [source]
 ----
 class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
   def initialize config = {}
-    super config # <1>
+    super config
     <<Declare and initialize variables needed by the processor>>
   end
 
@@ -65,7 +68,6 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
   <<Processing methods>>
 end
 ----
-<1> Rember to call the initializer of the superclass, or the custom processor won't work!
 
 Of course, we need to require the `asciidoctor/extensions` Ruby module to have the `Asciidoctor::Extensions::TreeProcessor` class available:
 
