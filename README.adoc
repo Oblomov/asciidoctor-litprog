@@ -5,7 +5,6 @@ Giuseppe Bilotta <giuseppe.bilotta@gmail.com>
 :icons: font
 :toc: left
 :literate-programming-outdir: lib/
-:literate-programming-line-template:
 // Styling
 :linkcss:
 :stylesdir: css
@@ -192,7 +191,6 @@ a vim-friendly solution for code navigation would be:
 ----
 :literate-programming-line-template: # %{file}:%{line}
 ----
-
 
 The actual output of the line directive is encapsulated in the `output_line_directive` method:
 
