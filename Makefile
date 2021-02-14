@@ -13,6 +13,7 @@ self-check: lib/literate-programming.rb
 	rm lib/lp-test.rb
 
 test: self-check
+	asciidoctor --trace -Ilib -rliterate-programming.rb test/noweb-alike.adoc -o /dev/null
 
 update-bootstrap: lib/lp-bootstrap.rb
 

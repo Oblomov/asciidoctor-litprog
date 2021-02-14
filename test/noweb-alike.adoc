@@ -1,0 +1,58 @@
+= Test chunk references and escaping
+:literate-programming-line-template: #line %{line} "{docname}"
+
+.Other multiline chunk
+[source]
+----
+nested one
+nested two
+----
+and this is where it ends
+
+.Multiline chunk
+[source]
+----
+first line
+second line <<Other multiline chunk>>
+----
+and this is some text
+that ends here
+
+noweb would escape the first @@ because it's at the beginning of the line,
+but not the second. In our case, we should only do the beginning-of-the-line escaping
+when working in noweb mode (i.e. when processing a block defined by using
+`<<Chunk name>>=` _inside_ the block:
+
+.With an at
+[source]
+----
+@@ <- this is an at
+and one @@ in the middle
+----
+and we continue
+
+[source,output=adoc.result]
+----
+here we insert the <<Multiline chunk>> for testing,
+here we insert the <<Other multiline chunk>> for testing twice <<Other multiline chunk>> and close,
+here we escape @<<Multiline chunk>> on one side
+here we escape <<Multiline chunk@>> on the other side, and this fails because there is no [Multiline chunk@] chunk
+here we escape @<<Multiline chunk@>> on both sides
+here we escape @@<<Multiline chunk>> the escape character
+here we escape @@@<<Multiline chunk>> the escaped escape character
+here we don't escape <<Multiline as it is not be needed
+here we escape @<<Multiline though it would not be needed
+here we escape Multiline@>> though it would not be needed
+here we double-escape @@<<Multiline though it would not be needed
+here we double-escape Multiline@@>> though it would not be needed
+@<<Multiline chunk>>
+<<Multiline chunk>>
+@@<<Other multiline chunk>>
+<<Other multiline chunk>>
+<<Other multiline chunk>>
+and some extra text
+here we escape @<<Multiline chunk>> and don't escape <<Other multiline chunk>> before closing
+with <<With an at>>
+@<<With an at>>
+<<With an at>>
+----
