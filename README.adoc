@@ -426,3 +426,38 @@ See the `LICENSE` file for further details.
 # Copyright (C) 2021 Giuseppe Bilotta <giuseppe.bilotta@gmail.com>
 # This software is licensed under the MIT license. See LICENSE for details
 ----
+
+== Missing features and known issues
+
+// I would have loved to use description checklists, but Asciidoctor doesn't seem to support those yet ...
+
+.Annoyances
+empty lines in chunks are output with leading whitespace::
+nested chunks output all lines with a leading whitespace, even if the line itself is empty;
+this should be avoided
+(or at most be configurable, since the significance of this whitespace depends on the output language).
+
+
+.TODO list
+improve chunk title parsing::
+the block title should only be used up to the first full stop or colon;
+the biggest problem in implementing this is arguably the ambiguity of the full stop vs ellipsis.
+
+support for the eWEB and `atangle` syntax::
+this will require adjusting the cursor offset for the `lineno` feature based on how the block was defined.
+
+`lineno` configuration::
+user should be able to enable/disable the feature, and to set the output template;
+this configuration should be global, with the possibility to provide per-file or per-language overrides.
+
+auto-indent configuration::
+the preservation of leading whitespace during tangling should be optional
+(again, globally + per-file / per-language overrides).
+
+hyperlinks::
+references to other chunks should be transformable into hyperlinks to the blocks defining the chunk,
+and it should be possible to navigate between such blocks.
+
+selective writing::
+in particular, avoid overwriting the destination file if the content would be unchanged;
+this is important to support large-scale projects where we want to avoid recompiling unchanged modules.
