@@ -141,6 +141,33 @@ def full_title string
 end
 ----
 
+=== Chunk contents and metadata [[chunkdef]]
+
+The chunk content is stored as an `Array` whose elements are either
+``String``s (the actual chunk lines), or ``Asciidoctor::Reader::Cursor``s,
+an Asciidoctor-provided structure that carries information about the origin
+(file and line number) of the blocks.
+
+Since, as we mentioned, a chunk may span multiple blocks,
+we can easily track information about the origin of each of the component blocks
+by storing the corresponding `Cursor` before the corresponding lines,
+as detailed in the <<collecting>> section.
+
+=== Metadata output
+
+The origin information for a block can be used to add appropriate metadata to
+the output files.
+Currently we support writing a C-style `#line` directive for a
+given filename `fname` and line number `lineno`:
+
+.Support...
+[source]
+----
+def output_line_directive file, fname, lineno
+  file.puts('#line %{lineno} "%{file}"' % { lineno: lineno, file: fname})
+end
+----
+
 === Tangling [[tangling]]
 
 Tangling is the process of “stitching together” all the code blocks, recursively following the
@@ -178,9 +205,9 @@ but by passing the chunk contents itself we can simplify the logic of the method
 the names of the chunks we're in the middle of processing:: this is a `Set` to which chunk names
 are added when entering the method and removed on exit, and it is used to detect circular references.
 
-The `chunk` is an `Array` whose elements are either ``String``s (the actual chunk lines)
-or ``Asciidoctor::Reader::Cursor``s (source line information). We use the latter to generate
-`#line` directives every time we enter or exit the recusion.
+As mentioned in <<chunkdef>>, the `chunk` is an `Array` whose elements are either
+``String``s (the actual chunk lines), or ``Asciidoctor::Reader::Cursor``s (that provide source line information).
+We handle the two cases separately, and raise an appropriate exception if we come across something unexpected:
 
 .Tangling...
 [source]
@@ -191,23 +218,8 @@ def recursive_tangle file, chunk_name, indent, chunk, stack
   lineno = 0
   chunk.each do |line|
     case line
-    when Asciidoctor::Reader::Cursor
-      fname = line.file
-      lineno = line.lineno + 1
-      file.puts('#line %{lineno} "%{file}"' % { lineno: lineno, file: fname})
-    when String
-      lineno += 1
-      ref, new_indent = is_chunk_ref line
-      if ref
-        # must not be in the stack
-        raise RuntimeError, "Recursive reference to #{ref} from #{chunk_name}" if stack.include? ref
-        # must be defined
-        raise ArgumentError, "Found reference to undefined chunk #{ref}" unless @chunks.has_key? ref
-        recursive_tangle file, ref, indent + new_indent, @chunks[ref], stack
-        file.puts('#line %{lineno} "%{file}"' % { lineno: lineno, file: fname})
-      else
-        file.puts indent + line
-      end
+    <<Cursor case>>
+    <<String case>>
     else
       raise TypeError, "Unknown chunk element #{line.inspect}"
     end
@@ -216,7 +228,51 @@ def recursive_tangle file, chunk_name, indent, chunk, stack
 end
 ----
 
-This needs to be done for each root chunk defined by the document:
+A `Cursor` always precedes the content lines it refers to.
+We use it to update the filename (`fname`) and line number (`lineno`) information,
+and we output a line directive, since the upcoming text lines will have a different origin
+compared to what has been output so far:
+
+.Cursor case
+[source]
+----
+when Asciidoctor::Reader::Cursor
+  fname = line.file
+  lineno = line.lineno + 1
+  output_line_directive(file, fname, lineno)
+----
+
+If the chunk element we're processing is a `String`, this can be either
+a reference to another chunk, or an actual content line. In both cases,
+we update the current origin line number `lineno`, so that the
+origin information is correct if we need to output a new line directive.
+
+In the reference case, we check for circular references or references to undefined chunks
+(raising appropriate exceptions), and then recurse into the referenced chunk.
+After returning from the referenced chunk, we output a new line directive,
+so that subsequent lines from the current chunk have correct origin information metadata.
+
+If the line is not a reference, we just output it as-is, preserving indent.
+
+.String case
+[source]
+----
+when String
+  lineno += 1
+  ref, new_indent = is_chunk_ref line
+  if ref
+    # must not be in the stack
+    raise RuntimeError, "Recursive reference to #{ref} from #{chunk_name}" if stack.include? ref
+    # must be defined
+    raise ArgumentError, "Found reference to undefined chunk #{ref}" unless @chunks.has_key? ref
+    recursive_tangle file, ref, indent + new_indent, @chunks[ref], stack
+    output_line_directive(file, fname, lineno)
+  else
+    file.puts indent + line
+  end
+----
+
+The recursive tangling process must be repeated for each root chunk  defined by the document:
 
 .Tangling...
 [source]
