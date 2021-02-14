@@ -68,8 +68,12 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
     end
     docdir = doc.attributes['docdir']
     outdir = doc.attributes['literate-programming-outdir']
-    outdir = File.join(docdir, outdir)
-    FileUtils.mkdir_p outdir
+    if outdir and not outdir.empty?
+      outdir = File.join(docdir, outdir)
+      FileUtils.mkdir_p outdir
+    else
+      outdir = docdir
+    end
     @roots.each do |name, initial_chunk|
       full_path = File.join(outdir, name)
       File.open(full_path, 'w') do |f|

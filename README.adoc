@@ -326,16 +326,21 @@ end
 
 We allow users to specify where the output files should be placed by overriding
 the `literate-programming-outdir` document attribute.
-If defined, this must be a path relative to the `docdir`.
-The output directory is created if not present:
+If set, this must be a path relative to the `docdir`.
+If unset, the `docdir` will be used directly.
+The output directory is created if not present (and if different from the `docdir`).
 
 .Prepare...
 [source]
 ----
 docdir = doc.attributes['docdir']
 outdir = doc.attributes['literate-programming-outdir']
-outdir = File.join(docdir, outdir)
-FileUtils.mkdir_p outdir
+if outdir and not outdir.empty?
+  outdir = File.join(docdir, outdir)
+  FileUtils.mkdir_p outdir
+else
+  outdir = docdir
+end
 ----
 
 Accessing `FileUtils` introduces a new requirement:
