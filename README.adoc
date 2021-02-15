@@ -392,45 +392,41 @@ different syntax.
 Processing of a single block requires us to identify the chunk type (root or generic)
 and title, add the title to the known chunk titles (if necessary) and append the
 block lines to the chunk contents.
+
 Since the default value for missing chunks is an empty `Array`,
 we can append the new lines directly using the `Array#+=` method,
 without special-casing the case for the first block that defines a chunk.
 
-Finally, we check if the new lines reference other chunks,
+We also need to check if the new lines reference other chunks,
 and if so we add the title to the list of known titles,
 to allow shortened names to be used henceforth.
 
 .Processing...
 [source]
 ----
-def process_block block
-  <<Determine chunk type and title, setting chunk_hash and chunk_title>>
-
+def add_to_chunk chunk_hash, chunk_title, block_lines
   @chunk_names.add chunk_title
-  <<Track source location information>>
-  chunk_hash[chunk_title] += block.lines
+  chunk_hash[chunk_title] += block_lines
 
   <<Check for references and prime the chunk names>>
 end
 ----
 
-A `source` block defines a generic chunk, unless it has the `output` attribute set,
-in which case it's a root chunk:
+A source block contributes to a single chunk.
+This will be a root chunk if the block has an `output` attribute, or a generic chunk otherwise:
 
-.Determine...
+.Processing...
 [source]
 ----
-chunk_hash = @chunks
-if block.style == "source"
-  # is this a root chunk?
+def process_source_block block
+  chunk_hash = @chunks
   if block.attributes.has_key? 'output'
     <<Handle root chunk>>
   else
     <<Handle generic chunk>>
   end
-else
-  # TODO check if first line is <<title>>=
-  return
+  <<Track source location information>>
+  add_to_chunk chunk_hash, chunk_title, block.lines
 end
 ----
 
@@ -466,7 +462,7 @@ referenced chunk name to `@chunk_names`:
 .Check for references...
 [source]
 ----
-block.lines.each do |line|
+block_lines.each do |line|
   mentioned, _ = is_chunk_ref line
   @chunk_names.add mentioned if mentioned
 end
@@ -507,7 +503,9 @@ and <<tangling>> the output files:
 ----
 def process doc
   doc.find_by context: :listing do |block|
-    process_block block
+    if block.style == 'source'
+      process_source_block block
+    end
   end
   tangle doc
   doc
