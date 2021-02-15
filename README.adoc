@@ -2,6 +2,7 @@
 Giuseppe Bilotta <giuseppe.bilotta@gmail.com>
 // Settings
 :sectnums:
+:sectanchors:
 :icons: font
 :toc: left
 :litprog-outdir: lib/
