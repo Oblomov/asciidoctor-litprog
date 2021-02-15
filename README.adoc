@@ -1,4 +1,4 @@
-= AsciiDoctor Literate Programming module
+= AsciiDoctor Literate Programming extension
 Giuseppe Bilotta <giuseppe.bilotta@gmail.com>
 // Settings
 :sectnums:
@@ -39,7 +39,7 @@ So why do we need another one?
 Integration:: we hook directly into AsciiDoctor, allowing single-pass processing of a document to produce both the documentation and the source;
 the plan is to also include cross-referencing and indexing for the code chunks at the documentation output level (but this is not currently implemented).
 
-More features:: most importantly, support the creation of multiple files from a single document, a feauture that is missing from the existing tools;
+More features:: most importantly, support the creation of multiple files from a single document, a feature that is missing from the existing tools;
 
 Syntax compatibility:: the existing tools have slightly different syntax;
 the obvious solution to this is to https://xkcd.com/927/[introduce a new, incompatible syntax],
@@ -57,7 +57,7 @@ In addition to the “legacy” `aweb` syntax, we also support the definition of
 In this case the title of the chunk is taken from the block title itself.
 
 NOTE: while we do support the “legacy” `aweb` syntax, the output is not guaranteed to match `atangle`'s output.
-We output line directives more aggresively, and the behavior with empty definitions is slightly different.
+We output line directives more aggressively, and the behavior with empty definitions is slightly different.
 
 IMPORTANT: the auto-detection of root chunks mechanism we employ with the “legacy” `aweb` syntax is quite aggressive,
 and may be subject to changes in the future.
@@ -444,7 +444,7 @@ chunk_title = block.attributes['output']
 ----
 
 Root chunks are unique (we do not append to them), so we need to check that there are no root chunks
-already defined with the gvien `chunk_title`:
+already defined with the given `chunk_title`:
 
 .Ensure root...
 [source]
@@ -507,7 +507,7 @@ end
 
 In `aweb`, chunk definition is done in anonymous `listing` blocks (without special attributes or styles).
 A `listing` block is assumed to define a chunk if the block _begins_ with a _chunk assignment_ line,
-i.e. a line that contains `<<Chunk title>>=` without leading whitespace, and optionally followed by whitespace.
+i.e. a line that contain only a `<<Chunk title>>=`, without leading whitespace, and optionally followed by whitespace.
 
 .Processing...
 [source]
@@ -520,7 +520,7 @@ def process_listing_block block
 end
 ----
 
-If the block does not begin with a chunk defintion, we can bail out early:
+If the block does not begin with a chunk definition, we can bail out early:
 
 .Filter legacy listing block
 [source]
@@ -661,7 +661,7 @@ improve chunk title parsing::
 the block title should only be used up to the first full stop or colon;
 the biggest problem in implementing this is arguably the ambiguity of the full stop vs ellipsis.
 
-support for the eWEB and nowasp::
+support for the eWEB and nowasp syntax::
 the nowasp/noweb syntax support in particular will require support for inline chunk reference expansion,
 escaping of inline `<<`/`>>` pair as well as start-of-line `@` symbols
 (see the `test/noweb-alike.adoc` test file); this will probably require some flag to enable/disable
