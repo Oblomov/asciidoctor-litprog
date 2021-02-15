@@ -330,7 +330,8 @@ when String
   end
 ----
 
-The recursive tangling process must be repeated for each root chunk  defined by the document:
+The recursive tangling process must be repeated for each root chunk defined by the document.
+The special root chunk name `*` will indicate that the chunks have to be streamed to the standard output.
 
 .Tangling...
 [source]
@@ -339,9 +340,13 @@ def tangle doc
   <<Set line directive>>
   <<Prepare output directory>>
   @roots.each do |name, initial_chunk|
-    <<Convert name to full_path>>
-    File.open(full_path, 'w') do |f|
-      recursive_tangle f, name, '', initial_chunk, Set[]
+    if name == '*'
+      recursive_tangle STDOUT, name, '', initial_chunk, Set[]
+    else
+      <<Convert name to full_path>>
+      File.open(full_path, 'w') do |f|
+        recursive_tangle f, name, '', initial_chunk, Set[]
+      end
     end
   end
 end

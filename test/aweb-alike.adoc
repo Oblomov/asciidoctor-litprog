@@ -36,3 +36,9 @@ here we insert the <<Multiline chunk>> for testing,
 and
 <<Nested def>>
 ----
+
+----
+<<*>>=
+This goes to standard output:
+<<Multiline chunk>>
+----

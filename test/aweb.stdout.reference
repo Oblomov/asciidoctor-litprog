@@ -1,0 +1,11 @@
+#line 42 "aweb-alike.adoc"
+This goes to standard output:
+#line 13 "aweb-alike.adoc"
+first line
+second line
+#line 6 "aweb-alike.adoc"
+nested one
+nested two
+#line 16 "aweb-alike.adoc"
+fourth line
+#line 44 "aweb-alike.adoc"
