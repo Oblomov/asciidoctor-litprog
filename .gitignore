@@ -1,5 +1,8 @@
-lib/literate-programming.rb
+lib/litprog.rb
 README.html
 css
+
+test/aweb.result
+test/aweb.stdout
 
 .*.swp
