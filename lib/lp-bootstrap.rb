@@ -11,6 +11,7 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
     @chunks = Hash.new { |hash, key| hash[key] = [] }
     @chunk_names = Set.new
     @line_directive = { default: '#line %{line} "%{file}"' }
+    @chunk_blocks = Hash.new { |hash, key| hash[key] = [] }
   end
 
   def full_title string
@@ -31,6 +32,14 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
     else
       return false
     end
+  end
+  def add_chunk_id chunk_title, block
+    block_count = @chunk_blocks[chunk_title].append(block).size
+    title_for_id = "_chunk_#{chunk_title}_block_#{block_count}"
+    new_id = Asciidoctor::Section.generate_id title_for_id, block.document
+    # TODO error handling
+    block.document.register :refs, [new_id, block]
+    block.id = new_id unless block.id
   end
   def recursive_tangle file, chunk_name, indent, chunk, stack
     stack.add chunk_name
@@ -75,9 +84,13 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
       outdir = docdir
     end
     @roots.each do |name, initial_chunk|
-      full_path = File.join(outdir, name)
-      File.open(full_path, 'w') do |f|
-        recursive_tangle f, name, '', initial_chunk, Set[]
+      if name == '*'
+        recursive_tangle STDOUT, name, '', initial_chunk, Set[]
+      else
+        full_path = File.join(outdir, name)
+        File.open(full_path, 'w') do |f|
+          recursive_tangle f, name, '', initial_chunk, Set[]
+        end
       end
     end
   end
@@ -104,6 +117,7 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
     end
     chunk_hash[chunk_title].append(block.source_location)
     add_to_chunk chunk_hash, chunk_title, block.lines
+    add_chunk_id chunk_title, block
   end
   CHUNK_DEF_RX = /^<<(.*)>>=\s*$/
   def process_listing_block block
@@ -127,6 +141,22 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
       chunk_hash[chunk_title].append(chunk_location)
       chunk_offset += lines.size
       add_to_chunk chunk_hash, chunk_title, block_lines
+      add_chunk_id chunk_title, block
+    end
+  end
+  def weave doc
+    @chunk_blocks.each do |chunk_title, block_list|
+      last_block_index = block_list.size - 1
+      block_list.each_with_index do |block, i|
+        prevlink = " [.prevlink]#<<#{block_list[i-1].id},prev>>#" if i > 0
+        nextlink = " [.nextlink]#<<#{block_list[i+1].id},next>>#" if i != last_block_index
+        if prevlink or nextlink
+          prevlink ||= ""
+          nextlink ||= ""
+          block.title = block.title + prevlink + nextlink
+        end
+        # TODO
+      end
     end
   end
   def process doc
@@ -138,6 +168,7 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
       end
     end
     tangle doc
+    weave doc
     doc
   end
 end
