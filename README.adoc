@@ -47,19 +47,33 @@ _but_ the actual plan is to also support the syntax from the other tools.
 
 === A note on syntax
 
-The syntax we currently support is a small extension to the `aweb` syntax,
-which in particular means that chunk references are not supported inline.
-This means that a source line is _either_ a chunk reference (optionally surrounded by whitespace),
-_or_ a text line (to be taken verbatim).
-The reason for this choice is that it virtually eliminates the need for escaping.
+The syntax we currently support is a small extension to the `aweb` syntax.
+Similarly to `noweb`, chunks in `aweb` are defined by an introductory line in the form
+`<<Chunk title>>=`, and are referenced by using the chunk title between double angle brackets:
+`<<Chunk title>>`.
 
-In addition to the “legacy” `aweb` syntax, we also support the definition of a (single) chunk in a `source` block.
-In this case the title of the chunk is taken from the block title itself.
+In contrast to `noweb`, `aweb` relies on AsciiDoc syntax to separate chunk definitions from documentation, and it does not support inline chunk references.
+In particular, this means that a source line is _either_ a chunk reference (optionally surrounded by whitespace),
+_or_ a text line (to be taken verbatim), and that an _at_ symbol (`@`) at the beginning of the line has no special meaning.
+
+The downside of this simplified syntax, aside from the restriction about chunk reference usage, is that there is no markup
+to indicate definition and usage of symbols. The upside is that the `aweb` virtually eliminates the need for escaping
+chunk references or `@` symbols.
+
+(It is also impossible to have an actual code line that begins with `<<` and ends with `>>`, so if your language needs those,
+you're (currently) out of luck.)
+
+Another minor differences between the two syntaxes is that in the `aweb` syntax chunks with the same name are automatically concatenated,
+so there is no need for the `<<Chunk title>>+=` notation.
+
+This module supports the standard (“legacy”) `aweb` syntax (with the caveats below).
+In addition, we interpret every `source` block as the definition of a (single) chunk,
+using the block's own title as the title of the chunk.
 
 NOTE: while we do support the “legacy” `aweb` syntax, the output is not guaranteed to match `atangle`'s output.
 We output line directives more aggressively, and the behavior with empty definitions is slightly different.
 
-IMPORTANT: the auto-detection of root chunks mechanism we employ with the “legacy” `aweb` syntax is quite aggressive,
+IMPORTANT: the root chunks auto-detection mechanism we employ with the “legacy” `aweb` syntax is quite aggressive,
 and may be subject to changes in the future.
 
 == How is this?
