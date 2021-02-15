@@ -1,4 +1,4 @@
-= AsciiDoctor Literate Programming extension
+= Asciidoctor Literate Programming extension
 Giuseppe Bilotta <giuseppe.bilotta@gmail.com>
 // Settings
 :sectnums:
@@ -15,15 +15,15 @@ Giuseppe Bilotta <giuseppe.bilotta@gmail.com>
 
 == What is this?
 
-This is a (Ruby) module to add https://en.wikipedia.org/Literate+programming[literate programming] support to https://www.asciidoctor.org/[AsciiDoctor].
+This is a (Ruby) module to add https://en.wikipedia.org/Literate+programming[literate programming] support to https://www.asciidoctor.org/[Asciidoctor].
 
 In short, literate programming is an approach to writing software and its documentation by prioritizing human language.
-A literate programming “source” is composed by text in some documentation system (in this case, AsciiDoctor's flavor of AsciiDoc) that describes the logic,
+A literate programming “source” is composed by text in some documentation system (in this case, Asciidoctor's flavor of AsciiDoc) that describes the logic,
 with interspersed code snippets whose union constitutes the source code as it will be passed to the compiler.
 
 The process of creating the code from the snippets is known as <<tangling>>, while the extraction of the documentation is known as weaving.
-The literate programming support we're introducing in AsciiDoctor with this module does not require a separate weaving step,
-since the source document is assumed to be a valid AsciiDoctor document,
+The literate programming support we're introducing in Asciidoctor with this module does not require a separate weaving step,
+since the source document is assumed to be a valid Asciidoctor document,
 and should therefore be processable as-is from the standard compiler, even without special modules.
 
 (In fact, this `README.adoc` file is itself a literate-programming source for the module itself.)
@@ -36,7 +36,7 @@ and the {url-mrt}[Model Realization Tools' aweb]
 (not to be confused with https://ctan.org/pkg/aweb[the Ada-centered one]).
 So why do we need another one?
 
-Integration:: we hook directly into AsciiDoctor, allowing single-pass processing of a document to produce both the documentation and the source;
+Integration:: we hook directly into Asciidoctor, allowing single-pass processing of a document to produce both the documentation and the source;
 the plan is to also include cross-referencing and indexing for the code chunks at the documentation output level (but this is not currently implemented).
 
 More features:: most importantly, support the creation of multiple files from a single document, a feature that is missing from the existing tools;
@@ -70,7 +70,7 @@ that will traverse the document tree to gather all blocks that define chunks to 
 
 The processor needs to track some state, so it needs to override the default constructor (`initialize` method)
 to set things up properly.
-AsciiDoctor's processors take a configuration `Hash` on construction,
+Asciidoctor's processors take a configuration `Hash` on construction,
 so we follow the convention, even though we do not (at present) make use of any configuration,
 and remember to call the superclass' constructor
 (otherwise, the extension won't work properly).
