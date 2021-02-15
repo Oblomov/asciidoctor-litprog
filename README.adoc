@@ -26,6 +26,8 @@ The process of creating the code from the snippets is known as <<tangling>>, whi
 The literate programming support we're introducing in Asciidoctor with this module does not require a separate weaving step,
 since the source document is assumed to be a valid Asciidoctor document,
 and should therefore be processable as-is from the standard compiler, even without special modules.
+In our case, we call <<weaving>> the process that enhances the document processing by improving the appearance and functionality
+of the chunk references.
 
 (In fact, this `README.adoc` file is itself a literate-programming source for the module itself.)
 
@@ -441,7 +443,7 @@ end
 We want to be able to reference blocks by the title of the chunk(s) they define,
 so we generate a chunk-specific ID and assign it to the block if appropriate.
 To generate the ID, we use the method Asciidoctor uses for sections,
-prepending `_chunk` and appending a sequential `_block__N__` where _N_ is
+prepending `+_chunk+` and appending a sequential `+_block_+_N_` where _N_ is
 an incremental number.
 
 To simplify management, we keep track of the blocks that contribute to each chunk:
@@ -659,10 +661,59 @@ chunk_hash[chunk_title].append(chunk_location)
 chunk_offset += lines.size
 ----
 
+=== Weaving
+
+Since our documents are natively AsciiDoc documents, the literate source itself can be processed
+by any AsciiDoc processor, even without support for the special syntax that defines chunks.
+The weaving process in this case is limited to a manipulation of the `source` blocks
+to improve the appearance and functionality of chunk references.
+
+To achieve this, we manipulate all the blocks associated with a chunk, adding links to the
+other blocks that define the same chunk, and replace chunk references with AsciiDoc hyperlinks.
+For each block we will need to know if a block is the last block in the list to
+determine if it needs a “next” link or not, so we cache the value of the last block index
+to speed up the check.
+
+.Processing...
+[source]
+----
+def weave doc
+  @chunk_blocks.each do |chunk_title, block_list|
+    last_block_index = block_list.size - 1
+    block_list.each_with_index do |block, i|
+      <<Add chunk navigation links>>
+      <<Hyperlink chunk references>>
+    end
+  end
+end
+----
+
+The chunk navigation links are added to the title of the block if there are
+preceding/following blocks in the same list:
+
+.Add chunk nav...
+[source]
+----
+prevlink = " [.prevlink]#<<#{block_list[i-1].id},prev>>#" if i > 0
+nextlink = " [.nextlink]#<<#{block_list[i+1].id},next>>#" if i != last_block_index
+if prevlink or nextlink
+  prevlink ||= ""
+  nextlink ||= ""
+  block.title = block.title + prevlink + nextlink
+end
+----
+
+
+.Hyperlink...
+[source]
+----
+# TODO
+----
+
 === Document processing
 
 The document as a whole is processed simply by processing all the listing blocks,
-and <<tangling>> the output files:
+<<tangling>> the output files, and <<weaving>> the documentation.
 
 .Processing...
 [source]
@@ -676,6 +727,7 @@ def process doc
     end
   end
   tangle doc
+  weave doc
   doc
 end
 ----
