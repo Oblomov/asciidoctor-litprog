@@ -81,37 +81,61 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
       end
     end
   end
-  def process_block block
-    chunk_hash = @chunks
-    if block.style == "source"
-      # is this a root chunk?
-      if block.attributes.has_key? 'output'
-        chunk_hash = @roots
-        chunk_title = block.attributes['output']
-        raise ArgumentError, "Duplicate root chunk for #{chunk_title}" if chunk_hash.has_key?(chunk_title)
-      else
-        # We use the block title (TODO up to the first full stop or colon) as chunk name
-        title = block.attributes['title']
-        chunk_title = full_title title
-        block.title = chunk_title if title != chunk_title
-      end
-    else
-      # TODO check if first line is <<title>>=
-      return
-    end
-
+  def add_to_chunk chunk_hash, chunk_title, block_lines
     @chunk_names.add chunk_title
-    chunk_hash[chunk_title].append(block.source_location)
-    chunk_hash[chunk_title] += block.lines
+    chunk_hash[chunk_title] += block_lines
 
-    block.lines.each do |line|
+    block_lines.each do |line|
       mentioned, _ = is_chunk_ref line
       @chunk_names.add mentioned if mentioned
     end
   end
+  def process_source_block block
+    chunk_hash = @chunks
+    if block.attributes.has_key? 'output'
+      chunk_hash = @roots
+      chunk_title = block.attributes['output']
+      raise ArgumentError, "Duplicate root chunk for #{chunk_title}" if @roots.has_key?(chunk_title)
+    else
+      # We use the block title (TODO up to the first full stop or colon) as chunk name
+      title = block.attributes['title']
+      chunk_title = full_title title
+      block.title = chunk_title if title != chunk_title
+    end
+    chunk_hash[chunk_title].append(block.source_location)
+    add_to_chunk chunk_hash, chunk_title, block.lines
+  end
+  CHUNK_DEF_RX = /^<<(.*)>>=\s*$/
+  def process_listing_block block
+    return if block.lines.empty?
+    return unless block.lines.first.match(CHUNK_DEF_RX)
+    chunk_titles = [ full_title($1) ]
+    block_location = block.source_location
+    chunk_offset = 0
+    block.lines.slice_when do |l1, l2|
+      l2.match(CHUNK_DEF_RX) and chunk_titles.append(full_title $1)
+    end.each do |lines|
+      chunk_title = chunk_titles.shift
+      block_lines = lines.drop 1
+      chunk_hash = @chunks
+      unless chunk_title.include? " "
+        chunk_hash = @roots
+        raise ArgumentError, "Duplicate root chunk for #{chunk_title}" if @roots.has_key?(chunk_title)
+      end
+      chunk_location = block_location.dup
+      chunk_location.advance(chunk_offset + 1)
+      chunk_hash[chunk_title].append(chunk_location)
+      chunk_offset += lines.size
+      add_to_chunk chunk_hash, chunk_title, block_lines
+    end
+  end
   def process doc
     doc.find_by context: :listing do |block|
-      process_block block
+      if block.style == 'source'
+        process_source_block block
+      else
+        process_listing_block block
+      end
     end
     tangle doc
     doc
