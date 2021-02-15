@@ -50,8 +50,12 @@ _but_ the actual plan is to also support the syntax from the other tools.
 
 The syntax we currently support is a small extension to the `aweb` syntax.
 Similarly to `noweb`, chunks in `aweb` are defined by an introductory line in the form
-`<<Chunk title>>=`, and are referenced by using the chunk title between double angle brackets:
-`<<Chunk title>>`.
+`+<<Chunk title>>=+`, and are referenced by using the chunk title between double angle brackets:
+`+<<Chunk title>>+`.
+
+****
+It's interesting to note how both AsciiDoc and `noweb`/`aweb` use the `+<<...>>+` syntax for references.
+****
 
 In contrast to `noweb`, `aweb` relies on AsciiDoc syntax to separate chunk definitions from documentation, and it does not support inline chunk references.
 In particular, this means that a source line is _either_ a chunk reference (optionally surrounded by whitespace),
@@ -65,7 +69,7 @@ chunk references or `@` symbols.
 you're (currently) out of luck.)
 
 Another minor differences between the two syntaxes is that in the `aweb` syntax chunks with the same name are automatically concatenated,
-so there is no need for the `<<Chunk title>>+=` notation.
+so there is no need for the `+<<Chunk title>>+=+` notation.
 
 This module supports the standard (“legacy”) `aweb` syntax (with the caveats below).
 In addition, we interpret every `source` block as the definition of a (single) chunk,
@@ -434,7 +438,42 @@ def add_to_chunk chunk_hash, chunk_title, block_lines
 end
 ----
 
-A source block contributes to a single chunk.
+We want to be able to reference blocks by the title of the chunk(s) they define,
+so we generate a chunk-specific ID and assign it to the block if appropriate.
+To generate the ID, we use the method Asciidoctor uses for sections,
+prepending `_chunk` and appending a sequential `_block__N__` where _N_ is
+an incremental number.
+
+To simplify management, we keep track of the blocks that contribute to each chunk:
+
+.Declare...
+[source]
+----
+@chunk_blocks = Hash.new { |hash, key| hash[key] = [] }
+----
+
+Since a `source` block contributes to a single chunk, this map would be sufficient
+to trivially reconstruct the whole chunk contents with origin information.
+However, since the <<legacy-compat,“legacy” `aweb` syntax>> has a more complex many-to-many correspondence between chunks and blocks,
+we need to separate the two pieces of information.
+
+To add a chunk ID, we first add the block to the list of blocks for that chunk (so the incremental number is 1-based),
+and then generate the new chunk ID, registering it with the document, and if appropriate adding it to the block:
+
+.Support...
+[source]
+----
+def add_chunk_id chunk_title, block
+  block_count = @chunk_blocks[chunk_title].append(block).size
+  title_for_id = "_chunk_#{chunk_title}_block_#{block_count}"
+  new_id = Asciidoctor::Section.generate_id title_for_id, block.document
+  # TODO error handling
+  block.document.register :refs, [new_id, block]
+  block.id = new_id unless block.id
+end
+----
+
+A `source` block contributes to a single chunk.
 This will be a root chunk if the block has an `output` attribute, or a generic chunk otherwise:
 
 .Processing...
@@ -449,6 +488,7 @@ def process_source_block block
   end
   <<Track source location information>>
   add_to_chunk chunk_hash, chunk_title, block.lines
+  add_chunk_id chunk_title, block
 end
 ----
 
@@ -523,11 +563,11 @@ preprocessor do
 end
 ----
 
-==== Legacy `aweb` compatibility
+==== Legacy `aweb` compatibility [[legacy-compat]]
 
 In `aweb`, chunk definition is done in anonymous `listing` blocks (without special attributes or styles).
 A `listing` block is assumed to define a chunk if the block _begins_ with a _chunk assignment_ line,
-i.e. a line that contain only a `<<Chunk title>>=`, without leading whitespace, and optionally followed by whitespace.
+i.e. a line that contain only a `+<<Chunk title>>=+`, without leading whitespace, and optionally followed by whitespace.
 
 .Processing...
 [source]
@@ -588,6 +628,7 @@ end.each do |lines|
   <<Detect legacy chunk type>>
   <<Track legacy chunk location information>>
   add_to_chunk chunk_hash, chunk_title, block_lines
+  add_chunk_id chunk_title, block
 end
 ----
 
