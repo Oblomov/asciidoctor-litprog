@@ -32,7 +32,8 @@ and should therefore be processable as-is from the standard compiler, even witho
 
 There are previous effort to introduce literate programming features in the AsciiDoc format, including
 http://eweb.sourceforge.net/[eWEB], https://gitlab.com/slightedsubzero/nowasp[nowasp]
-and the {url-mrt}[Model Realization Tools]' `atangle` and `aweave` programs.
+and the {url-mrt}[Model Realization Tools' aweb]
+(not to be confused with https://ctan.org/pkg/aweb[the Ada-centered one]).
 So why do we need another one?
 
 Integration:: we hook directly into AsciiDoctor, allowing single-pass processing of a document to produce both the documentation and the source;
@@ -42,7 +43,21 @@ More features:: most importantly, support the creation of multiple files from a 
 
 Syntax compatibility:: the existing tools have slightly different syntax;
 the obvious solution to this is to https://xkcd.com/927/[introduce a new, incompatible syntax],
-_but_ the actual plan is to also support the syntax from the other two tools.
+_but_ the actual plan is to also support the syntax from the other tools.
+
+=== A note on syntax
+
+The syntax we currently support is a small extension to the `aweb` syntax,
+which in particular means that chunk references are not supported inline.
+This means that a source line is _either_ a chunk reference (optionally surrounded by whitespace),
+_or_ a text line (to be taken verbatim).
+The reason for this choice is that it virtually eliminates the need for escaping.
+
+We support an extension to the `aweb` syntax in the sense that the title of the chunk defined
+by a source block is taken from the block title itself.
+
+(Presently, we are actually not fully compatible with `aweb` either, since listing blocks
+with explicit chunk definition(s) are not yet suported.)
 
 == How is this?
 
@@ -84,10 +99,11 @@ Each chunk is identified by a title, and the corresponding source code may be sp
 The (final) content of a chunk is obtained by the concatenation of all the blocks with the same title.
 
 The title of the chunk is used as a handle, that can be referenced by other chunks to declare that
-the content of the referenced chunk should be inlined in the referencing chunk (this inlining process is known as <<tangling>>).
+the content of the referenced chunk should be inlined in the referencing chunk
+(this inlining process is known as <<tangling>>).
 A special kind of chunk is the _root chunk_, that is not referenced by any other chunk and represents the starting point for the tangling process.
 We support the creation of multiple files from the same source, so we can have multiple root chunks,
-and we use the chunk title to represents the name of the file to be created by each root chunk..
+and we use the chunk title to represents the name of the file to be created by each root chunk.
 
 The natural data structure to store chunks (be them generic or root chunks) is a `Hash`
 that maps the title (a `String`) to the content (an `Array`).
@@ -110,13 +126,17 @@ Uniqueness of root chunks will be handled explicitly during block processing.
 @chunks = Hash.new { |hash, key| hash[key] = [] }
 ----
 
-Chunk titles have no particular syntax restriction, but are conventionally a natural language (synthetic) descriptions of the chunk intended use.
+Chunk titles can be nearly arbitrary strings,
+but are conventionally a natural language (synthetic) descriptions of the chunk intended use.
 As this can get on the longish side, and typing them multiple times can be time-consuming and error-prone,
-they can be shortened to any _unambiguous_ prefix followed by an ellipsis (three dots: `...`).
-For example, a chunk may be titled `Automagical creation of bug-free code`, and this may be shortened to `Automagic...`
-if there are no other chunks whose title begins with `Automagic`.
-We do require that _the first time a chunk title is encountered_ (be it to define it or as a reference in another chunk),
+additional uses of the same title can be shortened to any _unambiguous_ prefix followed by an ellipsis of three literal dots (`...`).
+For example, a chunk may be titled `Automagical creation of bug-free code`,
+and this may be shortened to `Automagic...` if there are no other chunks whose title begins with `Automagic`.
+
+We do require that _the first time a chunk title is encountered_
+(be it to define it or as a reference in another chunk),
 _it must be written out in full_.
+Moreover, since the trailing ellipsis is taken to be a shorthand notation, a chunk title cannot naturally end with it.
 
 To assist in the handling of shortened chunk titles, we keep track of all the (full) titles we've come across
 so far:
@@ -414,8 +434,9 @@ else
 end
 ----
 
-For a root chunk, aside from setting `chunk_hash` and `chunk_title` appropriately,
-we also verify that the same file name (i.e. chunk title) is not already defined:
+For a root chunk, the `chunk_hash` must be set to `@root`,
+and we take the `output` block attribute as `chunk_title`.
+We also verify that the same file name (i.e. chunk title) is not already defined:
 
 .Handle root chunk
 [source]
