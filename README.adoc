@@ -53,11 +53,14 @@ This means that a source line is _either_ a chunk reference (optionally surround
 _or_ a text line (to be taken verbatim).
 The reason for this choice is that it virtually eliminates the need for escaping.
 
-We support an extension to the `aweb` syntax in the sense that the title of the chunk defined
-by a source block is taken from the block title itself.
+In addition to the “legacy” `aweb` syntax, we also support the definition of a (single) chunk in a `source` block.
+In this case the title of the chunk is taken from the block title itself.
 
-(Presently, we are actually not fully compatible with `aweb` either, since listing blocks
-with explicit chunk definition(s) are not yet suported.)
+NOTE: while we do support the “legacy” `aweb` syntax, the output is not guaranteed to match `atangle`'s output.
+We output line directives more aggresively, and the behavior with empty definitions is slightly different.
+
+IMPORTANT: the auto-detection of root chunks mechanism we employ with the “legacy” `aweb` syntax is quite aggressive,
+and may be subject to changes in the future.
 
 == How is this?
 
@@ -382,12 +385,11 @@ full_path = File.join(outdir, name)
 
 === Collecting chunks [[collecting]]
 
-AsciiDoc's syntax allows us to forego special syntax to identify code chunks: we assume
-that any `listing` block in the `source` style is (part of) a code chunk.
 
-When we will add compatibility with the other AsciiDoc-based literate
-programming tools, we will also support generic `listing` blocks, with a slightly
-different syntax.
+==== New style
+
+AsciiDoc's syntax allows us to forego special syntax to identify code chunks: we assume
+that any `listing` block in the `source` style is (part of) a single code chunk.
 
 Processing of a single block requires us to identify the chunk type (root or generic)
 and title, add the title to the known chunk titles (if necessary) and append the
@@ -432,14 +434,22 @@ end
 
 For a root chunk, the `chunk_hash` must be set to `@root`,
 and we take the `output` block attribute as `chunk_title`.
-We also verify that the same file name (i.e. chunk title) is not already defined:
 
 .Handle root chunk
 [source]
 ----
 chunk_hash = @roots
 chunk_title = block.attributes['output']
-raise ArgumentError, "Duplicate root chunk for #{chunk_title}" if chunk_hash.has_key?(chunk_title)
+<<Ensure root chunk title is unique>>
+----
+
+Root chunks are unique (we do not append to them), so we need to check that there are no root chunks
+already defined with the gvien `chunk_title`:
+
+.Ensure root...
+[source]
+----
+raise ArgumentError, "Duplicate root chunk for #{chunk_title}" if @roots.has_key?(chunk_title)
 ----
 
 For a generic chunk, we leave `chunk_hash` at the default value, and set the `chunk_title`
@@ -493,6 +503,101 @@ preprocessor do
 end
 ----
 
+==== Legacy `aweb` compatibility
+
+In `aweb`, chunk definition is done in anonymous `listing` blocks (without special attributes or styles).
+A `listing` block is assumed to define a chunk if the block _begins_ with a _chunk assignment_ line,
+i.e. a line that contains `<<Chunk title>>=` without leading whitespace, and optionally followed by whitespace.
+
+.Processing...
+[source]
+----
+CHUNK_DEF_RX = /^<<(.*)>>=\s*$/
+def process_listing_block block
+  <<Filter legacy listing block>>
+  <<Define listing block processing variables>>
+  <<Legacy block processing>>
+end
+----
+
+If the block does not begin with a chunk defintion, we can bail out early:
+
+.Filter legacy listing block
+[source]
+----
+return if block.lines.empty?
+return unless block.lines.first.match(CHUNK_DEF_RX)
+----
+
+A single block can define multiple chunks: each definition spans from the line following the
+assignment line to the end of the block or the next chunk assignment line.
+We know however that we have at least one chunk (since otherwise the block is skipped):
+
+.Define listing block processing variables
+[source]
+----
+chunk_titles = [ full_title($1) ]
+----
+
+Since we can have multiple chunks defined in the same block,
+we cannot use the block's `source_location` directly:
+we need to track the offset (in lines) where each chunk definition begins from the block source location.
+
+.Define listing block...
+[source]
+----
+block_location = block.source_location
+chunk_offset = 0
+----
+
+To group the block lines into chunk definitions, we can leverage Ruby's `Enumerable#slice_when` method.
+A new slice starts when the _second_ line in the pair is a chunk assignment.
+In this case, the match will give us the chunk title, that we store in `chunk_titles`,
+and the `block_lines` we're interested in are the lines in the slice, except for the first one
+(that holds the chunk assignment expression).
+
+.Legacy block processing
+[source]
+----
+block.lines.slice_when do |l1, l2|
+  l2.match(CHUNK_DEF_RX) and chunk_titles.append(full_title $1)
+end.each do |lines|
+  chunk_title = chunk_titles.shift
+  block_lines = lines.drop 1
+  chunk_hash = @chunks
+  <<Detect legacy chunk type>>
+  <<Track legacy chunk location information>>
+  add_to_chunk chunk_hash, chunk_title, block_lines
+end
+----
+
+In `aweb`, the root chunk is determined by the user from the command line,
+and by default it is identified by the special chunk title `*`.
+Multiple root chunks are supported, but require multiple pass (one per root) to extract.
+We extend the root chunk auto-detection by assuming that any chunk that does not contain spaces
+in the title is a root chunk.
+
+.Detect legacy chunk type
+----
+unless chunk_title.include? " "
+  chunk_hash = @roots
+  <<Ensure root chunk title is unique>>
+end
+----
+
+The actual location of the chunk being processed can be obtained from the block location
+adding the `chunk_offset`, plus one to skip the chunk assignment line.
+After we've set the origin for the current chunk lines, we can increment the `chunk_offset` for the next chunk.
+
+.Track legacy chunk location...
+[source]
+----
+chunk_location = block_location.dup
+chunk_location.advance(chunk_offset + 1)
+chunk_hash[chunk_title].append(chunk_location)
+chunk_offset += lines.size
+----
+
 === Document processing
 
 The document as a whole is processed simply by processing all the listing blocks,
@@ -505,6 +610,8 @@ def process doc
   doc.find_by context: :listing do |block|
     if block.style == 'source'
       process_source_block block
+    else
+      process_listing_block block
     end
   end
   tangle doc
@@ -554,14 +661,16 @@ improve chunk title parsing::
 the block title should only be used up to the first full stop or colon;
 the biggest problem in implementing this is arguably the ambiguity of the full stop vs ellipsis.
 
-support for the eWEB, nowasp and `atangle` syntax::
-this will require adjusting the cursor offset for the `lineno` feature based on how the block was defined;
-it will also require support inline chunk reference exapnsion, and for `@<<` / `@>>` escaping.
+support for the eWEB and nowasp::
+the nowasp/noweb syntax support in particular will require support for inline chunk reference expansion,
+escaping of inline `<<`/`>>` pair as well as start-of-line `@` symbols
+(see the `test/noweb-alike.adoc` test file); this will probably require some flag to enable/disable
+(probably a document attribute `:litprog-syntax:` with possible values `aweb` and `noweb`).
 
 `lineno` configuration::
 ** global setting implemented via `litprog-line-template` document attribute;
 ** missing: per-file or per-language overrides;
-this shold be doable adding other keys to the  `@line_directive` hash
+this shold be doable adding other keys to the  `@line_directive` hash.
 
 auto-indent configuration::
 the preservation of leading whitespace during tangling should be optional
