@@ -4,7 +4,7 @@ Giuseppe Bilotta <giuseppe.bilotta@gmail.com>
 :sectnums:
 :icons: font
 :toc: left
-:literate-programming-outdir: lib/
+:litprog-outdir: lib/
 // Styling
 :linkcss:
 :stylesdir: css
@@ -188,17 +188,17 @@ whose default value follows the C-style `#line` directive.
 @line_directive = { default: '#line %{line} "%{file}"' }
 ----
 
-The user can override this by setting the `literate-programming-line-template` document attribute to any string,
+The user can override this by setting the `litprog-line-template` document attribute to any string,
 where the `%{line}` and `%{file}` keywords will be replaced by the source line number and file name, respectively.
 Setting it to the empty string disables the output line directive output.
 
-IMPORTANT: If `literate-programming-line-template` is _unset_, the default line template will be used.
+IMPORTANT: If `litprog-line-template` is _unset_, the default line template will be used.
 This is why the output is disabled only if the attribute is _set_ to an empty string.
 
 .Set line directive
 [source]
 ----
-line_template = doc.attributes['literate-programming-line-template']
+line_template = doc.attributes['litprog-line-template']
 if line_template # attribute is set
   @line_directive[:default] = line_template
 end
@@ -209,7 +209,7 @@ a vim-friendly solution for code navigation would be:
 
 .Example of line template setting
 ----
-:literate-programming-line-template: # %{file}:%{line}
+:litprog-line-template: # %{file}:%{line}
 ----
 
 The actual output of the line directive is encapsulated in the `output_line_directive` method:
@@ -345,7 +345,7 @@ end
 ----
 
 We allow users to specify where the output files should be placed by overriding
-the `literate-programming-outdir` document attribute.
+the `litprog-outdir` document attribute.
 If set, this must be a path relative to the `docdir`.
 If unset, the `docdir` will be used directly.
 The output directory is created if not present (and if different from the `docdir`).
@@ -354,7 +354,7 @@ The output directory is created if not present (and if different from the `docdi
 [source]
 ----
 docdir = doc.attributes['docdir']
-outdir = doc.attributes['literate-programming-outdir']
+outdir = doc.attributes['litprog-outdir']
 if outdir and not outdir.empty?
   outdir = File.join(docdir, outdir)
   FileUtils.mkdir_p outdir
@@ -521,7 +521,7 @@ The complete module simply assembles what we've seen so far, and registers the e
 with Asciidoctor:
 
 .The module structure
-[source,output=literate-programming.rb]
+[source,output=litprog.rb]
 ----
 <<Licensing statement>>
 
@@ -561,7 +561,7 @@ this will require adjusting the cursor offset for the `lineno` feature based on 
 it will also require support inline chunk reference exapnsion, and for `@<<` / `@>>` escaping.
 
 `lineno` configuration::
-** global setting implemented via `literate-programming-line-template` document attribute;
+** global setting implemented via `litprog-line-template` document attribute;
 ** missing: per-file or per-language overrides;
 this shold be doable adding other keys to the  `@line_directive` hash
 

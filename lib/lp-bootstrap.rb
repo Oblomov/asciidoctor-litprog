@@ -62,12 +62,12 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
     stack.delete chunk_name
   end
   def tangle doc
-    line_template = doc.attributes['literate-programming-line-template']
+    line_template = doc.attributes['litprog-line-template']
     if line_template # attribute is set
       @line_directive[:default] = line_template
     end
     docdir = doc.attributes['docdir']
-    outdir = doc.attributes['literate-programming-outdir']
+    outdir = doc.attributes['litprog-outdir']
     if outdir and not outdir.empty?
       outdir = File.join(docdir, outdir)
       FileUtils.mkdir_p outdir
