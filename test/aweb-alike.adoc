@@ -1,0 +1,38 @@
+= Test chunk references and escaping
+:litprog-line-template: #line %{line} "{docname}{docfilesuffix}"
+
+----
+<<Other multiline chunk>>=
+nested one
+nested two
+----
+and this is where it ends
+
+----
+<<Multiline chunk>>=
+first line
+second line
+<<Other multiline chunk>>
+fourth line
+----
+and this is some text
+that ends here
+
+----
+<<Double def>>=
+<<Nested def>>=
+What happens here?
+----
+
+----
+<<aweb.result>>=
+here we insert the <<Multiline chunk>> for testing,
+@<<Multiline chunk>>
+<<Multiline chunk>>
+@@<<Other multiline chunk>>
+<<Other multiline chunk>>
+<<Other multiline chunk>>
+ <<Double def>>
+and
+<<Nested def>>
+----

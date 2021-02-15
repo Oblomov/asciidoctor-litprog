@@ -1,0 +1,27 @@
+#line 29 "aweb-alike.adoc"
+here we insert the <<Multiline chunk>> for testing,
+@<<Multiline chunk>>
+#line 13 "aweb-alike.adoc"
+first line
+second line
+#line 6 "aweb-alike.adoc"
+nested one
+nested two
+#line 16 "aweb-alike.adoc"
+fourth line
+#line 32 "aweb-alike.adoc"
+@@<<Other multiline chunk>>
+#line 6 "aweb-alike.adoc"
+nested one
+nested two
+#line 34 "aweb-alike.adoc"
+#line 6 "aweb-alike.adoc"
+nested one
+nested two
+#line 35 "aweb-alike.adoc"
+#line 23 "aweb-alike.adoc"
+#line 36 "aweb-alike.adoc"
+and
+#line 24 "aweb-alike.adoc"
+What happens here?
+#line 38 "aweb-alike.adoc"
