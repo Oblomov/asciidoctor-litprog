@@ -77,7 +77,7 @@ This module supports the standard (“legacy”) `aweb` syntax (with the caveats
 In addition, we interpret every `source` block as the definition of a (single) chunk,
 using the block's own title as the title of the chunk.
 
-NOTE: while we do support the “legacy” `aweb` syntax, the output is not guaranteed to match `atangle`'s output.
+NOTE: while we do support the “legacy” `aweb` syntax, the output is not guaranteed to match ``atangle``'s output.
 We output line directives more aggressively, and the behavior with empty definitions is slightly different.
 
 IMPORTANT: the root chunks auto-detection mechanism we employ with the “legacy” `aweb` syntax is quite aggressive,
@@ -661,7 +661,7 @@ chunk_hash[chunk_title].append(chunk_location)
 chunk_offset += lines.size
 ----
 
-=== Weaving
+=== Weaving [[weaving]]
 
 Since our documents are natively AsciiDoc documents, the literate source itself can be processed
 by any AsciiDoc processor, even without support for the special syntax that defines chunks.
