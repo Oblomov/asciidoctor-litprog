@@ -703,6 +703,34 @@ if prevlink or nextlink
 end
 ----
 
+==== Turning chunk references into in-doc references [[ref-to-ref]]
+
+The final part of the weaving process is to turn chunk references found inside chunks
+into hyperlinks to the corresponding chunk definition(s).
+Since in-document the code snippets are handled by the syntax highlighter,
+to be able to capture and manage the chunk references we need to hook into the syntax highlighting mechanism.
+
+Currently we implement support only for the `rouge` syntax highlighter, that we extend
+with a custom derived class, for which we override the `highlight` method:
+
+.Override `rouge` highlighter
+[source]
+----
+class LitProgRouge < (Asciidoctor::SyntaxHighlighter.for 'rouge')
+  register_for 'rouge'
+
+  def highlight node, source, lang, opts
+    <<Chunk-aware highlighting>>
+  end
+end
+----
+
+.Chunk-aware...
+[source]
+----
+# TODO
+super
+----
 
 .Hyperlink...
 [source]
@@ -744,6 +772,8 @@ with Asciidoctor:
 <<Licensing statement>>
 
 <<Requires>>
+
+<<Override...>>
 
 <<Main class...>>
 
