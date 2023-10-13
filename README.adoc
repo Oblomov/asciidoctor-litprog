@@ -460,7 +460,8 @@ However, since the <<legacy-compat,“legacy” `aweb` syntax>> has a more compl
 we need to separate the two pieces of information.
 
 To add a chunk ID, we first add the block to the list of blocks for that chunk (so the incremental number is 1-based),
-and then generate the new chunk ID, registering it with the document, and if appropriate adding it to the block:
+and then generate the new chunk ID, registering it with the document, and if appropriate adding it to the block.
+The map between title and chunk ID is also registered in the document catalog, for use in the weaving process.
 
 .Support...
 [source]
@@ -472,6 +473,7 @@ def add_chunk_id chunk_title, block
   # TODO error handling
   block.document.register :refs, [new_id, block]
   block.id = new_id unless block.id
+  block.document.catalog[:lit_prog_chunks][chunk_title] << new_id
 end
 ----
 
@@ -752,10 +754,34 @@ end
 lexer
 ----
 
-Likewise, the custom formatter looks for `Comment::Special` tokens
+The custom formatter looks for `Comment::Special` tokens
 and turns them into hyperlinks with a `litprog` class.
 
-TODO: The references themselves must be fetched from the document.
+.Function to generate an HTML link to a literate programming chunk
+[source]
+----
+def litprog_link id, text
+  target = '#' + id
+  "<a class='litprog' href='#{target}'>#{text}</a>"
+end
+----
+
+The map between title and link targets is retrieved from the document catalog,
+and we use an ad-hoc version of the `full_title` function,
+because we expect any duplication or missing chunks to have been detected.
+
+.Query the document catalog of literary programming chunks
+[source]
+----
+pfx = title.chomp("...")
+if pfx != title
+  fulltitle, hits = @litprog_catalog.find { |k, v| k.start_with? pfx }
+  fulltitle = fulltitle.gsub("'", '&quot;')
+  title = "<abbr title='#{fulltitle}'>#{title}</abbr>"
+else
+  hits = @litprog_catalog[title]
+end
+----
 
 NOTE: this formatter only works as expected for HTML output.
 
@@ -765,15 +791,24 @@ TODO: support other kinds of formatters
 [source]
 ----
 formatter = super
+formatter.instance_variable_set :@litprog_catalog, node.document.catalog[:lit_prog_chunks]
 class << formatter
+  <<Function to generate an HTML link...>>
   def safe_span tok, safe_val
     special = tok.matches? ::Rouge::Token::Tokens::Comment::Special
     if special
-      m = safe_val.match(/\&lt;\&lt;(.*)\&gt;\&gt;/)
+      m = safe_val.match /\&lt;\&lt;(.*)\&gt;\&gt;/
       if m
         title = m[1]
-        puts node.document
-        safe_val = "&lt;&lt;<a class='litprog' href=''>#{m[1]}</a>&gt;&gt;"
+        <<Query the document catalog...>>
+        first, *rest = *hits
+        safe_val = "&lt;&lt;" + litprog_link(first, title)
+        if rest.length > 0
+          safe_val += "<sup> " + rest.each_with_index.map { |hit, index|
+            litprog_link(hit, index+2)
+          }.join(' ') + "</sup>"
+        end
+        safe_val += "&gt;&gt;"
       end
     end
     super
@@ -785,12 +820,15 @@ formatter
 === Document processing
 
 The document as a whole is processed simply by processing all the listing blocks,
-<<tangling>> the output files, and <<weaving>> the documentation.
+<<tangling>> the output files, and <<weaving>> the documentation,
+after initializing the catalog of literate programming chunks,
+that maps titles to chunk IDs.
 
 .Processing...
 [source]
 ----
 def process doc
+  doc.catalog[:lit_prog_chunks] = Hash.new { |h, k| h[k] = [] }
   doc.find_by context: :listing do |block|
     if block.style == 'source'
       process_source_block block
