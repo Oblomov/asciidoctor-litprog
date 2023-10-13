@@ -158,7 +158,7 @@ For example, a chunk may be titled `Automagical creation of bug-free code`,
 and this may be shortened to `Automagic...` if there are no other chunks whose title begins with `Automagic`.
 
 We do require that _the first time a chunk title is encountered_
-(be it to define it or as a reference in another chunk),
+(be it to define it or as a reference in another chunk)
 _it must be written out in full_.
 Moreover, since the trailing ellipsis is taken to be a shorthand notation, a chunk title cannot naturally end with it.
 
@@ -682,7 +682,6 @@ def weave doc
     last_block_index = block_list.size - 1
     block_list.each_with_index do |block, i|
       <<Add chunk navigation links>>
-      <<Hyperlink chunk references>>
     end
   end
 end
@@ -711,7 +710,7 @@ Since in-document the code snippets are handled by the syntax highlighter,
 to be able to capture and manage the chunk references we need to hook into the syntax highlighting mechanism.
 
 Currently we implement support only for the `rouge` syntax highlighter, that we extend
-with a custom derived class, for which we override the `highlight` method:
+with a custom derived class, for which we override the lexer and formatter:
 
 .Override `rouge` highlighter
 [source]
@@ -719,23 +718,68 @@ with a custom derived class, for which we override the `highlight` method:
 class LitProgRouge < (Asciidoctor::SyntaxHighlighter.for 'rouge')
   register_for 'rouge'
 
-  def highlight node, source, lang, opts
-    <<Chunk-aware highlighting>>
+  def create_lexer node, source, lang, opts
+    <<Custom lexer>>
+  end
+
+  def create_formatter node, source, lang, opts
+    <<Custom formatter>>
   end
 end
 ----
 
-.Chunk-aware...
+The new lexer overrides whatever lexer would normally be used by Asciidoctor,
+but extends the `step` method (used by `RegExp` lexers in `rouge`)
+to look for whole lines that match a chunk and yield
+a `Comment::Special` token instead of whatever the original lexer would:
+
+.Custom lexer
 [source]
 ----
-# TODO
-super
+lexer = super
+class << lexer
+  def step state, stream
+    if state == get_state(:root) or stream.beginning_of_line?
+      if stream.scan /((?:^|[\r\n]+)\s*)(<<.*>>)\s*$/
+        yield_token Text::Whitespace, stream.captures[0]
+        yield_token Comment::Special, stream.captures[1]
+        return true
+      end
+    end
+    super
+  end
+end
+lexer
 ----
 
-.Hyperlink...
+Likewise, the custom formatter looks for `Comment::Special` tokens
+and turns them into hyperlinks with a `litprog` class.
+
+TODO: The references themselves must be fetched from the document.
+
+NOTE: this formatter only works as expected for HTML output.
+
+TODO: support other kinds of formatters
+
+.Custom formatter
 [source]
 ----
-# TODO
+formatter = super
+class << formatter
+  def safe_span tok, safe_val
+    special = tok.matches? ::Rouge::Token::Tokens::Comment::Special
+    if special
+      m = safe_val.match(/\&lt;\&lt;(.*)\&gt;\&gt;/)
+      if m
+        title = m[1]
+        puts node.document
+        safe_val = "&lt;&lt;<a class='litprog' href=''>#{m[1]}</a>&gt;&gt;"
+      end
+    end
+    super
+  end
+end
+formatter
 ----
 
 === Document processing
