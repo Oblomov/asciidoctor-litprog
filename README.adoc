@@ -1,5 +1,6 @@
 = Asciidoctor Literate Programming extension
 Giuseppe Bilotta <giuseppe.bilotta@gmail.com>
+v1.0, 2023-10-14
 // Settings
 :sectnums:
 :sectanchors:
@@ -100,6 +101,7 @@ and remember to call the superclass' constructor
 [source]
 ----
 class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
+  <<Plugin version>>
   def initialize config = {}
     super config
     <<Declare and initialize variables needed by the processor>>
@@ -116,6 +118,12 @@ Of course, we need to require the `asciidoctor/extensions` Ruby module to have t
 .Requires
 [source]
 require 'asciidoctor/extensions'
+
+And the plugin version corresponds to the document one:
+
+.Plugin version
+[source]
+VERSION = '1.0'
 
 === Chunk management
 
@@ -871,7 +879,7 @@ The software is copyright (C) 2021–2023 by {author}, and is made available und
 See the `LICENSE` file for further details.
 
 .Licensing...
-[source]
+[source,id=licensing-statement]
 ----
 # Copyright (C) 2021–2023 Giuseppe Bilotta <giuseppe.bilotta@gmail.com>
 # This software is licensed under the MIT license. See LICENSE for details
@@ -901,9 +909,11 @@ auto-indent configuration::
 the preservation of leading whitespace during tangling should be optional
 (again, globally + per-file / per-language and possibly per-chunk overrides).
 
-hyperlinks::
-references to other chunks should be transformable into hyperlinks to the blocks defining the chunk,
-and it should be possible to navigate between such blocks.
+support substitutions::
+substitutions in source blocks are not supported in the tangling phase,
+so things like author and version information needs to be duplicated
+between the Asciidoctor document metadata and the source blocks
+(see the <<licensing-statement,Licensing statement>> in this document as an example).
 
 selective writing::
 in particular, avoid overwriting the destination file if the content would be unchanged;

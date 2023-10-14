@@ -1,10 +1,70 @@
-# Copyright (C) 2021 Giuseppe Bilotta <giuseppe.bilotta@gmail.com>
+# Copyright (C) 2021–2023 Giuseppe Bilotta <giuseppe.bilotta@gmail.com>
 # This software is licensed under the MIT license. See LICENSE for details
 
 require 'asciidoctor/extensions'
 require 'fileutils'
 
+class LitProgRouge < (Asciidoctor::SyntaxHighlighter.for 'rouge')
+  register_for 'rouge'
+
+  def create_lexer node, source, lang, opts
+    lexer = super
+    class << lexer
+      def step state, stream
+        if state == get_state(:root) or stream.beginning_of_line?
+          if stream.scan /((?:^|[\r\n]+)\s*)(<<.*>>)\s*$/
+            yield_token Text::Whitespace, stream.captures[0]
+            yield_token Comment::Special, stream.captures[1]
+            return true
+          end
+        end
+        super
+      end
+    end
+    lexer
+  end
+
+  def create_formatter node, source, lang, opts
+    formatter = super
+    formatter.instance_variable_set :@litprog_catalog, node.document.catalog[:lit_prog_chunks]
+    class << formatter
+      def litprog_link id, text
+        target = '#' + id
+        "<a class='litprog' href='#{target}'>#{text}</a>"
+      end
+      def safe_span tok, safe_val
+        special = tok.matches? ::Rouge::Token::Tokens::Comment::Special
+        if special
+          m = safe_val.match /\&lt;\&lt;(.*)\&gt;\&gt;/
+          if m
+            title = m[1]
+            pfx = title.chomp("...")
+            if pfx != title
+              fulltitle, hits = @litprog_catalog.find { |k, v| k.start_with? pfx }
+              fulltitle = fulltitle.gsub("'", '&quot;')
+              title = "<abbr title='#{fulltitle}'>#{title}</abbr>"
+            else
+              hits = @litprog_catalog[title]
+            end
+            first, *rest = *hits
+            safe_val = "&lt;&lt;" + litprog_link(first, title)
+            if rest.length > 0
+              safe_val += "<sup> " + rest.each_with_index.map { |hit, index|
+                litprog_link(hit, index+2)
+              }.join(' ') + "</sup>"
+            end
+            safe_val += "&gt;&gt;"
+          end
+        end
+        super
+      end
+    end
+    formatter
+  end
+end
+
 class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
+  VERSION = '1.0'
   def initialize config = {}
     super config
     @roots = Hash.new { |hash, key| hash[key] = [] }
@@ -40,6 +100,7 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
     # TODO error handling
     block.document.register :refs, [new_id, block]
     block.id = new_id unless block.id
+    block.document.catalog[:lit_prog_chunks][chunk_title] << new_id
   end
   def recursive_tangle file, chunk_name, indent, chunk, stack
     stack.add chunk_name
@@ -155,11 +216,11 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
           nextlink ||= ""
           block.title = block.title + prevlink + nextlink
         end
-        # TODO
       end
     end
   end
   def process doc
+    doc.catalog[:lit_prog_chunks] = Hash.new { |h, k| h[k] = [] }
     doc.find_by context: :listing do |block|
       if block.style == 'source'
         process_source_block block
