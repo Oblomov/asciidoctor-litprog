@@ -721,12 +721,11 @@ preceding/following blocks in the same list:
 .Add chunk nav...
 [source]
 ----
-prevlink = " [.prevlink]#<<#{block_list[i-1].id},prev>>#" if i > 0
-nextlink = " [.nextlink]#<<#{block_list[i+1].id},next>>#" if i != last_block_index
-if prevlink or nextlink
-  prevlink ||= ""
-  nextlink ||= ""
-  block.title = block.title + prevlink + nextlink
+links = []
+links << "xref:#{block_list[i-1].id}[⮝,role=prev]" if i > 0
+links << "xref:#{block_list[i+1].id}[⮟,role=next]" if i != last_block_index
+if links.length > 0
+  block.title = block.title + ' [.litprog-nav]#' + (links * ' ') + '#'
 end
 ----
 
