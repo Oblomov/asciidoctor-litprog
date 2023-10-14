@@ -528,6 +528,8 @@ end
 
 A `source` block contributes to a single chunk.
 This will be a root chunk if the block has an `output` attribute, or a generic chunk otherwise.
+The `chunk_hash` local variable is used to track which of the `@root` and `@chunks`
+collections this block needs to be added to.
 
 .Processing...
 [source]
@@ -566,16 +568,33 @@ already defined with the given `chunk_title`:
 raise ArgumentError, "Duplicate root chunk for #{chunk_title}" if @roots.has_key?(chunk_title)
 ----
 
-For a generic chunk, we leave `chunk_hash` at the default value, and set the `chunk_title`
-from the `title` attribute of the block.
-If the block title was shortened, we also replace the block title with the full chunk title,
+For a generic chunk, `chunk_hash` is left at the default value (`@chunks`),
+and the `chunk_title` is set from the title attribute of the block.
+We want to use the raw block title for this,
+which is not exposed by Asciidoctor directly,
+Because of this, we need to “monkey patch” the block class to provide an appropriate method:
+
+.Monkey patch block class
+[source]
+----
+module Asciidoctor
+  class Block
+    def litprog_raw_title
+      @title
+    end
+  end
+end
+----
+
+We can use this method to retrieve the raw block title,
+and if the block title was shortened, we also replace it with the full chunk title,
 to improve the legibility of the documentation.
 
 .Handle generic chunk
 [source]
 ----
 # We use the block title (TODO up to the first full stop or colon) as chunk name
-title = block.attributes['title']
+title = block.litprog_raw_title
 chunk_title = full_title title
 block.title = chunk_title if title != chunk_title
 ----
@@ -749,7 +768,7 @@ links = []
 links << "xref:#{block_list[i-1].id}[⮝,role=prev]" if i > 0
 links << "xref:#{block_list[i+1].id}[⮟,role=next]" if i != last_block_index
 if links.length > 0
-  block.title = block.attributes['title'] + ' [.litprog-nav]#' + (links * ' ') + '#'
+  block.title = block.litprog_raw_title + ' [.litprog-nav]#' + (links * ' ') + '#'
 end
 ----
 
@@ -933,6 +952,8 @@ with Asciidoctor:
 <<Requires>>
 
 <<Override...>>
+
+<<Monkey patch...>>
 
 <<Main class...>>
 
