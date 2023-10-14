@@ -992,9 +992,10 @@ escaping of inline `<<`/`>>` pair as well as start-of-line `@` symbols
 (probably a document attribute `:litprog-syntax:` with possible values `aweb` and `noweb`).
 
 `lineno` configuration::
-** global setting implemented via `litprog-line-template` document attribute;
-** missing: per-file or per-language overrides;
-this shold be doable adding other keys to the  `@line_directive` hash.
+* [x] global setting implemented via `litprog-line-template` document attribute;
+* [ ] per-language overrides (possibly with good defaults);
+* [ ] per-file overrides;
+this should be doable adding other keys to the  `@line_directive` hash.
 
 auto-indent configuration::
 the preservation of leading whitespace during tangling should be optional
