@@ -64,7 +64,7 @@ class LitProgRouge < (Asciidoctor::SyntaxHighlighter.for 'rouge')
 end
 
 class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
-  VERSION = '1.0'
+  VERSION = '1.1'
   def initialize config = {}
     super config
     @roots = Hash.new { |hash, key| hash[key] = [] }
@@ -101,6 +101,13 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
     block.document.register :refs, [new_id, block]
     block.id = new_id unless block.id
     block.document.catalog[:lit_prog_chunks][chunk_title] << new_id
+  end
+  def apply_supported_subs block
+    if block.subs.include? :attributes
+       block.apply_subs block.lines, [:attributes]
+    else
+       block.lines
+    end
   end
   def recursive_tangle file, chunk_name, indent, chunk, stack
     stack.add chunk_name
@@ -177,7 +184,8 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
       block.title = chunk_title if title != chunk_title
     end
     chunk_hash[chunk_title].append(block.source_location)
-    add_to_chunk chunk_hash, chunk_title, block.lines
+    block_lines = apply_supported_subs block
+    add_to_chunk chunk_hash, chunk_title, block_lines
     add_chunk_id chunk_title, block
   end
   CHUNK_DEF_RX = /^<<(.*)>>=\s*$/

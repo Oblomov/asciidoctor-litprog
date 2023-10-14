@@ -1,6 +1,6 @@
 = Asciidoctor Literate Programming extension
 Giuseppe Bilotta <giuseppe.bilotta@gmail.com>
-v1.0, 2023-10-14
+v1.1, 2023-10-14
 // Settings
 :sectnums:
 :sectanchors:
