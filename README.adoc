@@ -7,6 +7,8 @@ v1.1, 2023-10-14
 :icons: font
 :toc: left
 :litprog-outdir: lib/
+// TODO: empty for now, or it breaks our CSS
+:litprog-line-template:
 // Styling
 :linkcss:
 :stylesdir: css
@@ -124,6 +126,28 @@ And the plugin version corresponds to the document one:
 .Plugin version
 [source,subs='+attributes']
 VERSION = '{revnumber}'
+
+The <<weaving>> process will introduce <<ref-to-ref,cross-referencing>> between the chunks
+as well as navigation links between blocks contributing to the same chunk.
+We want to be able to provide default styling for these links, which we can do using a
+`Docinfo` processor that will insert the needed CSS in the document head.
+
+.Main class...
+[source]
+----
+class LiterateProgrammingDocinfoProcessor < Asciidoctor::Extensions::DocinfoProcessor
+  <<Plugin version>>
+
+  use_dsl
+  at_location :head
+  def process doc
+%(<style>
+<<Styling for weaved links>>
+</style>)
+  end
+end
+----
+
 
 === Chunk management
 
@@ -729,6 +753,24 @@ if links.length > 0
 end
 ----
 
+The default style for the navigation links floats them to the end of the line
+(we fall back to right floating for older user agents),
+prints them in an upright font,
+and removes the text underline:
+
+.Styling...
+[source,css]
+----
+span.litprog-nav {
+  float: right;
+  float: inline-end;
+  font-style: normal;
+}
+span.litprog-nav a {
+  text-decoration: none;
+}
+----
+
 ==== Turning chunk references into in-doc references [[ref-to-ref]]
 
 The final part of the weaving process is to turn chunk references found inside chunks
@@ -780,15 +822,25 @@ lexer
 ----
 
 The custom formatter looks for `Comment::Special` tokens
-and turns them into hyperlinks with a `litprog` class.
+and turns them into hyperlinks with a `litprog-nav` class.
 
 .Function to generate an HTML link to a literate programming chunk
 [source]
 ----
 def litprog_link id, text
   target = '#' + id
-  "<a class='litprog' href='#{target}'>#{text}</a>"
+  "<a class='litprog-nav' href='#{target}'>#{text}</a>"
 end
+----
+
+These are also styled without underline:
+
+.Styling...
+[source,css]
+----
+a.litprog-nav {
+   text-decoration: none;
+}
 ----
 
 The map between title and link targets is retrieved from the document catalog,
@@ -887,6 +939,7 @@ with Asciidoctor:
 Asciidoctor::Extensions.register do
   <<Enable sourcemap>>
   tree_processor LiterateProgrammingTreeProcessor
+  docinfo_processor LiterateProgrammingDocinfoProcessor
 end
 ----
 
