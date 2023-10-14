@@ -725,7 +725,7 @@ links = []
 links << "xref:#{block_list[i-1].id}[⮝,role=prev]" if i > 0
 links << "xref:#{block_list[i+1].id}[⮟,role=next]" if i != last_block_index
 if links.length > 0
-  block.title = block.title + ' [.litprog-nav]#' + (links * ' ') + '#'
+  block.title = block.attributes['title'] + ' [.litprog-nav]#' + (links * ' ') + '#'
 end
 ----
 
