@@ -142,7 +142,7 @@ class LiterateProgrammingDocinfoProcessor < Asciidoctor::Extensions::DocinfoProc
   at_location :head
   def process doc
 %(<style>
-<<Styling for weaved links>>
+<<Styling for woven links>>
 </style>)
   end
 end
