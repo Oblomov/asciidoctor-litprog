@@ -1112,7 +1112,8 @@ See the link:LICENSE[] file for further details.
 
 // I would have loved to use description checklists, but Asciidoctor doesn't seem to support those yet ...
 
-.TODO list
+=== TODO list
+
 improve chunk title parsing::
 the block title should only be used up to the first full stop or colon;
 the biggest problem in implementing this is arguably the ambiguity of the full stop vs ellipsis.
@@ -1140,8 +1141,11 @@ this is important to support large-scale projects where we want to avoid recompi
 support other kinds of formatters::
 chunks will not be hyperlinked in syntax highlighters different from `rouge` presently.
 
-allow swapping file names in `litprog-file-map`:
+allow swapping file names in `litprog-file-map`::
 as pointed out <<noswap,in the relevant note>>, this is currently not supported
 due to the way the check for uniqueness is done,
 but could be supported with a smarter check.
 
+cross-reference chunk usage::
+in the chunk navigation it would be interesting to have links to where the chunk is used;
+maybe also generate a graph describing all chunk relations to place somewhere in the document?
