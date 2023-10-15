@@ -706,7 +706,7 @@ We want to use the raw block title for this,
 which is not exposed by Asciidoctor directly,
 Because of this, we need to “monkey patch” the block class to provide an appropriate method:
 
-.Monkey patch block class
+.Monkey patch the `Block` class
 [source]
 ----
 module Asciidoctor
@@ -981,7 +981,7 @@ lexer
 
 The custom formatter looks for `Comment::Special` tokens
 and turns them into hyperlinks if the comment content
-matches an HTML-escaped chunk reference.
+matches a chunk reference.
 
 To resolve the chunk references, the formatter needs to query the document catalog,
 which we make available by creating a new `:@litprog_catalog` instance variable.
@@ -991,6 +991,10 @@ separate numbered links are created for each block past the first.
 
 NOTE: this formatter only works as expected for HTML output.
 
+IMPORTANT: we overload the `span` rather than `safe_span` method, to simplify title matching.
+Otherwise we would need to unescape the special characters `<`, `>`, `&`,
+and then re-escape them again when creating the links.
+
 .Custom formatter
 [source]
 ----
@@ -999,22 +1003,28 @@ formatter = super
 formatter.instance_variable_set :@litprog_catalog, node.document.catalog[:lit_prog_chunks]
 
 class << formatter
+  include Asciidoctor::Logging
   <<Define function to link to a literate programming chunk>>
-  def safe_span tok, safe_val
+  def span tok, val
     special = tok.matches? ::Rouge::Token::Tokens::Comment::Special
     if special
-      m = safe_val.match /\&lt;\&lt;(.*)\&gt;\&gt;/
+      m = val.match /<<(.*)>>/
       if m
         title = m[1]
         <<Query the document catalog of literary programming chunks>>
-        first, *rest = *hits
-        safe_val = "&lt;&lt;" + litprog_link(first, title)
-        if rest.length > 0
-          safe_val += "<sup> " + rest.each_with_index.map { |hit, index|
-            litprog_link(hit, index+2)
-          }.join(' ') + "</sup>"
+        if hits.empty?
+          logger.warn "Unresolved chunk reference #{title.inspect} found in special comment while formatting source"
+        else
+          first, *rest = *hits
+          safe_val = "&lt;&lt;" + litprog_link(first, title)
+          if rest.length > 0
+            safe_val += "<sup> " + rest.each_with_index.map { |hit, index|
+              litprog_link(hit, index+2)
+            }.join(' ') + "</sup>"
+          end
+          safe_val += "&gt;&gt;"
+          return safe_span tok, safe_val
         end
-        safe_val += "&gt;&gt;"
       end
     end
     super
@@ -1047,7 +1057,11 @@ a.litprog-nav {
 
 The map between title and link targets is retrieved from the document catalog,
 and we use an ad-hoc version of the `full_title` function,
-because we expect any duplication or missing chunks to have been detected.
+because we expect any duplication or missing chunks to have been detected
+at previous stages.
+This section of the code also takes care to apply `escape_special_html_chars`
+to the title. This takes care of any `<`, `>` and `&` in the text,
+as the standard `rouge` HTML formatter would do..
 
 .Query the document catalog...
 [source]
@@ -1055,10 +1069,11 @@ because we expect any duplication or missing chunks to have been detected.
 pfx = title.chomp("...")
 if pfx != title
   fulltitle, hits = @litprog_catalog.find { |k, v| k.start_with? pfx }
-  fulltitle = fulltitle.gsub("'", '&quot;')
-  title = "<abbr title='#{fulltitle}'>#{title}</abbr>"
+  fulltitle = fulltitle.gsub("'", '&apos;')
+  title = "<abbr title='#{fulltitle}'>#{escape_special_html_chars title}</abbr>"
 else
   hits = @litprog_catalog[title]
+  title = escape_special_html_chars title
 end
 ----
 
