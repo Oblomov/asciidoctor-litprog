@@ -41,9 +41,10 @@ and the {url-mrt}[Model Realization Tools' aweb]
 So why do we need another one?
 
 Integration:: we hook directly into Asciidoctor, allowing single-pass processing of a document to produce both the documentation and the source;
-the plan is to also include cross-referencing and indexing for the code chunks at the documentation output level (but this is not currently implemented).
+this also allows us to include proper cross-referencing and indexing for the code chunks at the documentation output level;
 
-More features:: most importantly, support the creation of multiple files from a single document, a feature that is missing from the existing tools;
+More features:: most importantly, support the creation of multiple files from a single document,
+a feature that is missing from some of the existing tools;
 
 Syntax compatibility:: the existing tools have slightly different syntax;
 the obvious solution to this is to https://xkcd.com/927/[introduce a new, incompatible syntax],
@@ -87,8 +88,9 @@ and may be subject to changes in the future.
 == How is this?
 
 The module is implemented as an https://docs.asciidoctor.org/asciidoctor/latest/extensions/[Asciidoctor extension].
-Since we are only interested in producing secondary outputs, we implement a https://docs.asciidoctor.org/asciidoctor/latest/extensions/tree-processor/[`TreeProcessor`],
-that will traverse the document tree to gather all blocks that define chunks to be output to the secondary files.
+Since we are mainly interested in producing secondary outputs,
+the core of thee module will be a https://docs.asciidoctor.org/asciidoctor/latest/extensions/tree-processor/[`TreeProcessor`],
+that traverses the document tree to gather all blocks that define chunks to be output to the secondary files.
 
 The processor needs to track some state,
 so it needs to override the default constructor (`initialize` method) to set things up properly.
@@ -111,6 +113,7 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
 
   <<Support methods>>
   <<Tangling methods>>
+  <<Weaving methods>>
   <<Processing methods>>
 end
 ----
@@ -874,12 +877,14 @@ The weaving process in this case is limited to a manipulation of the `source` bl
 to improve the appearance and functionality of chunk references.
 
 To achieve this, we manipulate all the blocks associated with a chunk, adding links to the
-other blocks that define the same chunk, and replace chunk references with AsciiDoc hyperlinks.
+other blocks that define the same chunk, and replacing chunk references with AsciiDoc hyperlinks,
+in addition to the block title normalization done during the processing.
+
 For each block we will need to know if a block is the last block in the list to
 determine if it needs a “next” link or not, so we cache the value of the last block index
 to speed up the check.
 
-.Processing...
+.Weaving...
 [source]
 ----
 def weave doc
@@ -975,9 +980,53 @@ lexer
 ----
 
 The custom formatter looks for `Comment::Special` tokens
-and turns them into hyperlinks with a `litprog-nav` class.
+and turns them into hyperlinks if the comment content
+matches an HTML-escaped chunk reference.
 
-.Function to generate an HTML link to a literate programming chunk
+To resolve the chunk references, the formatter needs to query the document catalog,
+which we make available by creating a new `:@litprog_catalog` instance variable.
+
+If multiple blocks contribute to a chunk,
+separate numbered links are created for each block past the first.
+
+NOTE: this formatter only works as expected for HTML output.
+
+.Custom formatter
+[source]
+----
+formatter = super
+# make the document catalog accessible to the formatter
+formatter.instance_variable_set :@litprog_catalog, node.document.catalog[:lit_prog_chunks]
+
+class << formatter
+  <<Define function to link to a literate programming chunk>>
+  def safe_span tok, safe_val
+    special = tok.matches? ::Rouge::Token::Tokens::Comment::Special
+    if special
+      m = safe_val.match /\&lt;\&lt;(.*)\&gt;\&gt;/
+      if m
+        title = m[1]
+        <<Query the document catalog of literary programming chunks>>
+        first, *rest = *hits
+        safe_val = "&lt;&lt;" + litprog_link(first, title)
+        if rest.length > 0
+          safe_val += "<sup> " + rest.each_with_index.map { |hit, index|
+            litprog_link(hit, index+2)
+          }.join(' ') + "</sup>"
+        end
+        safe_val += "&gt;&gt;"
+      end
+    end
+    super
+  end
+end
+formatter
+----
+
+The function to generate the link is trivial:
+it simply returns an `a` HTML element with a `litprog-nav` class.
+
+.Define function to link...
 [source]
 ----
 def litprog_link id, text
@@ -1000,7 +1049,7 @@ The map between title and link targets is retrieved from the document catalog,
 and we use an ad-hoc version of the `full_title` function,
 because we expect any duplication or missing chunks to have been detected.
 
-.Query the document catalog of literary programming chunks
+.Query the document catalog...
 [source]
 ----
 pfx = title.chomp("...")
@@ -1011,38 +1060,6 @@ if pfx != title
 else
   hits = @litprog_catalog[title]
 end
-----
-
-NOTE: this formatter only works as expected for HTML output.
-
-.Custom formatter
-[source]
-----
-formatter = super
-formatter.instance_variable_set :@litprog_catalog, node.document.catalog[:lit_prog_chunks]
-class << formatter
-  <<Function to generate an HTML link...>>
-  def safe_span tok, safe_val
-    special = tok.matches? ::Rouge::Token::Tokens::Comment::Special
-    if special
-      m = safe_val.match /\&lt;\&lt;(.*)\&gt;\&gt;/
-      if m
-        title = m[1]
-        <<Query the document catalog...>>
-        first, *rest = *hits
-        safe_val = "&lt;&lt;" + litprog_link(first, title)
-        if rest.length > 0
-          safe_val += "<sup> " + rest.each_with_index.map { |hit, index|
-            litprog_link(hit, index+2)
-          }.join(' ') + "</sup>"
-        end
-        safe_val += "&gt;&gt;"
-      end
-    end
-    super
-  end
-end
-formatter
 ----
 
 === Document processing
