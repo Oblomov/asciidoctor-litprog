@@ -72,6 +72,8 @@ module Asciidoctor
 end
 
 class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
+  include Asciidoctor::Logging
+
   VERSION = '2.0'
   def initialize config = {}
     super config
@@ -175,7 +177,29 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
     else
       outdir = docdir
     end
+    root_name_map = {}
+    doc.attr('litprog-file-map').to_s.split ':' do |entry|
+      entry.strip!
+      cname, fname = entry.split '>', 2
+      cname.strip!
+      fname.strip!
+      if cname.empty? or fname.empty?
+        logger.warn 'empty chunk name in litprog-file-map ignored' if cname.empty?
+        logger.warn 'empty file name in litprog-file-map ignored' if fname.empty?
+        next
+      end
+      unless @roots.include? cname
+        logger.warn "non-existent chunk #{cname} in litprog-file-map ignored"
+        next
+      end
+      next if cname == fname # nothing to remap
+      raise ArgumentError, "#{cname} remapped to existing #{fname}" if @roots.include? fname
+      mapped_already = root_name_map.key fname
+      raise ArgumentError, "#{cname} remapped to #{fname}, same as #{mapped_already}" if mapped_already
+      root_name_map[cname] = fname
+    end
     @roots.each do |name, initial_chunk|
+      name = root_name_map.fetch name, name
       if name == '*'
         to_pop = recursive_tangle STDOUT, name, '', initial_chunk, Set[]
         @active_line_directive_template.pop to_pop
