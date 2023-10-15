@@ -4,12 +4,12 @@ README.html: README.adoc lib/lp-bootstrap.rb
 lib/litprog.rb: README.html
 
 update-bootstrap: lib/litprog.rb
-	grep -v '^#line' $< > lib/lp-bootstrap.rb
+	grep -v '^#line' $< | grep -v '^/\*' > lib/lp-bootstrap.rb
 
 self-check: lib/litprog.rb
 	mv lib/litprog.rb lib/lp-test.rb && \
 	asciidoctor --trace -Ilib -rlp-test.rb README.adoc -o README.html && \
-	diff lib/lp-test.rb lib/litprog.rb && \
+	diff -u lib/lp-test.rb lib/litprog.rb && \
 	rm lib/lp-test.rb
 
 aweb-check: lib/litprog.rb test/aweb-alike.adoc test/aweb.reference

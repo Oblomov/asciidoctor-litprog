@@ -30,7 +30,7 @@ class LitProgRouge < (Asciidoctor::SyntaxHighlighter.for 'rouge')
     class << formatter
       def litprog_link id, text
         target = '#' + id
-        "<a class='litprog' href='#{target}'>#{text}</a>"
+        "<a class='litprog-nav' href='#{target}'>#{text}</a>"
       end
       def safe_span tok, safe_val
         special = tok.matches? ::Rouge::Token::Tokens::Comment::Special
@@ -63,6 +63,14 @@ class LitProgRouge < (Asciidoctor::SyntaxHighlighter.for 'rouge')
   end
 end
 
+module Asciidoctor
+  class Block
+    def litprog_raw_title
+      @title
+    end
+  end
+end
+
 class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
   VERSION = '1.1'
   def initialize config = {}
@@ -70,7 +78,8 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
     @roots = Hash.new { |hash, key| hash[key] = [] }
     @chunks = Hash.new { |hash, key| hash[key] = [] }
     @chunk_names = Set.new
-    @line_directive = { default: '#line %{line} "%{file}"' }
+    @line_directive_template = { }
+    @active_line_directive_template = []
     @chunk_blocks = Hash.new { |hash, key| hash[key] = [] }
   end
 
@@ -84,7 +93,8 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
     hits.first
   end
   def output_line_directive file, fname, lineno
-    file.puts(@line_directive[:default] % { line: lineno, file: fname}) unless @line_directive[:default].empty?
+    template = @active_line_directive_template.last
+    file.puts( template % { line: lineno, file: fname}) unless template.nil_or_empty?
   end
   def is_chunk_ref line
     if line.match /^(\s*)<<(.*)>>\s*$/
@@ -113,12 +123,18 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
     stack.add chunk_name
     fname = ''
     lineno = 0
+    line_directive_template_push = 0
     chunk.each do |line|
       case line
+      when Hash
+        lang = line.fetch('language', '_')
+        lang = '_' unless @line_directive_template.key? lang
+        @active_line_directive_template.push @line_directive_template[lang]
+        line_directive_template_push += 1
       when Asciidoctor::Reader::Cursor
         fname = line.file
         lineno = line.lineno + 1
-        output_line_directive(file, fname, lineno)
+        output_line_directive file, fname, lineno
       when String
         lineno += 1
         ref, new_indent = is_chunk_ref line
@@ -127,8 +143,11 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
           raise RuntimeError, "Recursive reference to #{ref} from #{chunk_name}" if stack.include? ref
           # must be defined
           raise ArgumentError, "Found reference to undefined chunk #{ref}" unless @chunks.has_key? ref
-          recursive_tangle file, ref, indent + new_indent, @chunks[ref], stack
-          output_line_directive(file, fname, lineno)
+          # recurse and get line directive stack growth
+          to_pop = recursive_tangle file, ref, indent + new_indent, @chunks[ref], stack
+          output_line_directive file, fname, lineno
+          # pop line directive stack
+          @active_line_directive_template.pop to_pop
         else
           file.puts line.empty? ? line : indent + line
         end
@@ -137,12 +156,17 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
       end
     end
     stack.delete chunk_name
+    return line_directive_template_push
   end
   def tangle doc
-    line_template = doc.attributes['litprog-line-template']
-    if line_template # attribute is set
-      @line_directive[:default] = line_template
+    @line_directive_template['_'] = doc.attr('litprog-line-template').dup
+    doc.attributes.each do |key, value|
+      lang = key.dup
+      if lang.delete_prefix! 'litprog-line-template-'
+        @line_directive_template[lang] = value unless lang.empty?
+      end
     end
+    @active_line_directive_template.push @line_directive_template['_']
     docdir = doc.attributes['docdir']
     outdir = doc.attributes['litprog-outdir']
     if outdir and not outdir.empty?
@@ -153,11 +177,13 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
     end
     @roots.each do |name, initial_chunk|
       if name == '*'
-        recursive_tangle STDOUT, name, '', initial_chunk, Set[]
+        to_pop = recursive_tangle STDOUT, name, '', initial_chunk, Set[]
+        @active_line_directive_template.pop to_pop
       else
         full_path = File.join(outdir, name)
         File.open(full_path, 'w') do |f|
-          recursive_tangle f, name, '', initial_chunk, Set[]
+          to_pop = recursive_tangle f, name, '', initial_chunk, Set[]
+          @active_line_directive_template.pop to_pop
         end
       end
     end
@@ -179,11 +205,12 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
       raise ArgumentError, "Duplicate root chunk for #{chunk_title}" if @roots.has_key?(chunk_title)
     else
       # We use the block title (TODO up to the first full stop or colon) as chunk name
-      title = block.attributes['title']
+      title = block.litprog_raw_title
       chunk_title = full_title title
       block.title = chunk_title if title != chunk_title
     end
-    chunk_hash[chunk_title].append(block.source_location)
+    chunk_hash[chunk_title].append block.attributes
+    chunk_hash[chunk_title].append block.source_location
     block_lines = apply_supported_subs block
     add_to_chunk chunk_hash, chunk_title, block_lines
     add_chunk_id chunk_title, block
@@ -217,12 +244,11 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
     @chunk_blocks.each do |chunk_title, block_list|
       last_block_index = block_list.size - 1
       block_list.each_with_index do |block, i|
-        prevlink = " [.prevlink]#<<#{block_list[i-1].id},prev>>#" if i > 0
-        nextlink = " [.nextlink]#<<#{block_list[i+1].id},next>>#" if i != last_block_index
-        if prevlink or nextlink
-          prevlink ||= ""
-          nextlink ||= ""
-          block.title = block.title + prevlink + nextlink
+        links = []
+        links << "xref:#{block_list[i-1].id}[⮝,role=prev]" if i > 0
+        links << "xref:#{block_list[i+1].id}[⮟,role=next]" if i != last_block_index
+        if links.length > 0
+          block.title = block.litprog_raw_title + ' [.litprog-nav]#' + (links * ' ') + '#'
         end
       end
     end
@@ -241,13 +267,37 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
     doc
   end
 end
+class LiterateProgrammingDocinfoProcessor < Asciidoctor::Extensions::DocinfoProcessor
+  VERSION = '1.1'
+
+  use_dsl
+  at_location :head
+  def process doc
+%(<style>
+span.litprog-nav {
+  float: right;
+  float: inline-end;
+  font-style: normal;
+}
+span.litprog-nav a {
+  text-decoration: none;
+}
+a.litprog-nav {
+   text-decoration: none;
+}
+</style>)
+  end
+end
 
 Asciidoctor::Extensions.register do
   preprocessor do
     process do |doc, reader|
       doc.sourcemap = true
+      doc.set_attr 'litprog-line-template', '#line %{line} "%{file}"', false
+      doc.set_attr 'litprog-line-template-css', '/* %{file}:%{line} */', false
       nil
     end
   end
   tree_processor LiterateProgrammingTreeProcessor
+  docinfo_processor LiterateProgrammingDocinfoProcessor
 end

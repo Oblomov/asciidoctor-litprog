@@ -7,8 +7,6 @@ v1.1, 2023-10-14
 :icons: font
 :toc: left
 :litprog-outdir: lib/
-// TODO: empty for now, or it breaks our CSS
-:litprog-line-template:
 // Styling
 :linkcss:
 :stylesdir: css
@@ -133,7 +131,7 @@ We want to be able to provide default styling for these links, which we can do u
 `Docinfo` processor that will insert the needed CSS in the document head.
 
 .Main class...
-[source]
+[source,id=docinfoproc]
 ----
 class LiterateProgrammingDocinfoProcessor < Asciidoctor::Extensions::DocinfoProcessor
   <<Plugin version>>
@@ -223,9 +221,11 @@ end
 === Chunk contents and metadata [[chunkdef]]
 
 The chunk content is stored as an `Array` whose elements are either
-``String``s (the actual chunk lines), or ``Asciidoctor::Reader::Cursor``s,
+``String``s (the actual chunk lines),
+``Asciidoctor::Reader::Cursor``s,
 an Asciidoctor-provided structure that carries information about the origin
-(file and line number) of the blocks.
+(file and line number) of the blocks,
+or ``Hash``es (the attributes of the block that originated this component).
 
 Since, as we mentioned, a chunk may span multiple blocks,
 we can easily track information about the origin of each of the component blocks
@@ -235,31 +235,8 @@ as detailed in the <<collecting>> section.
 === Metadata output
 
 The origin information for a block can be used to add appropriate metadata to the output files.
-The template used to print the line information is stored in the member variable `@line_directive`,
-whose default value follows the C-style `#line` directive.
-
-.Declare...
-[source]
-----
-@line_directive = { default: '#line %{line} "%{file}"' }
-----
-
-The user can override this by setting the `litprog-line-template` document attribute to any string,
-where the `%{line}` and `%{file}` keywords will be replaced by the source line number and file name, respectively.
-Setting it to the empty string disables the output line directive output.
-
-IMPORTANT: If `litprog-line-template` is _unset_, the default line template will be used.
-This is why the output is disabled only if the attribute is _set_ to an empty string.
-
-.Set line directive
-[source]
-----
-line_template = doc.attributes['litprog-line-template']
-if line_template # attribute is set
-  @line_directive[:default] = line_template
-end
-----
-
+The format with which this information is output is set by the `litprog-line-template` document attribute,
+a string where the `%{line}` and `%{file}` keywords will be replaced by the source line number and file name, respectively.
 As an example, for languages that do not have built-in support for a line directive,
 a vim-friendly solution for code navigation would be:
 
@@ -268,13 +245,61 @@ a vim-friendly solution for code navigation would be:
 :litprog-line-template: # %{file}:%{line}
 ----
 
+The default value for this template produces a C-style `#line` directive:
+
+.Set default attributes
+[source]
+----
+doc.set_attr 'litprog-line-template', '#line %{line} "%{file}"', false
+----
+
+Syntax-specific line templates can be specified through a template `litprog-line-template-+_lang_+`
+where `_lang_` is the language name as it would be used to specify the syntax highlighting language of a source block.
+The module comes with a specialization for CSS:
+
+.Set default attributes
+[source]
+----
+doc.set_attr 'litprog-line-template-css', '/* %{file}:%{line} */', false
+----
+
+In the tree processor,
+the templates used to print the line information are stored in the member variable `@line_directive_template`,
+a hash mapping the language to the template.
+During <<tangling>>, line directives may change based on the language of the chunk block being output,
+so we keep track of active directives in the `@active_line_directive_template` stack:
+
+.Declare...
+[source]
+----
+@line_directive_template = { }
+@active_line_directive_template = []
+----
+
+These variables are initialized at the beginning of the tangling phase,
+with the special key `_` used for the default template.
+
+.Set line directive
+[source]
+----
+@line_directive_template['_'] = doc.attr('litprog-line-template').dup
+doc.attributes.each do |key, value|
+  lang = key.dup
+  if lang.delete_prefix! 'litprog-line-template-'
+    @line_directive_template[lang] = value unless lang.empty?
+  end
+end
+@active_line_directive_template.push @line_directive_template['_']
+----
+
 The actual output of the line directive is encapsulated in the `output_line_directive` method:
 
 .Support...
 [source]
 ----
 def output_line_directive file, fname, lineno
-  file.puts(@line_directive[:default] % { line: lineno, file: fname}) unless @line_directive[:default].empty?
+  template = @active_line_directive_template.last
+  file.puts( template % { line: lineno, file: fname}) unless template.nil_or_empty?
 end
 ----
 
@@ -316,8 +341,13 @@ the names of the chunks we're in the middle of processing:: this is a `Set` to w
 are added when entering the method and removed on exit, and it is used to detect circular references.
 
 As mentioned in <<chunkdef>>, the `chunk` is an `Array` whose elements are either
-``String``s (the actual chunk lines), or ``Asciidoctor::Reader::Cursor``s (that provide source line information).
-We handle the two cases separately, and raise an appropriate exception if we come across something unexpected:
+``String``s (the actual chunk lines),
+``Hash``es of attributes, or
+``Asciidoctor::Reader::Cursor``s (that provide source line information).
+We handle the three cases separately, and raise an appropriate exception if we come across something unexpected.
+
+We return the number of time the active line directive template was pushed,
+so that it can be popped as many times by the caller.
 
 .Tangling...
 [source]
@@ -326,8 +356,10 @@ def recursive_tangle file, chunk_name, indent, chunk, stack
   stack.add chunk_name
   fname = ''
   lineno = 0
+  line_directive_template_push = 0
   chunk.each do |line|
     case line
+    <<Hash case>>
     <<Cursor case>>
     <<String case>>
     else
@@ -335,7 +367,21 @@ def recursive_tangle file, chunk_name, indent, chunk, stack
     end
   end
   stack.delete chunk_name
+  return line_directive_template_push
 end
+----
+
+In the `Hash` case, we only care about finding the source language of the block,
+if defined, to set the `@active_line_directive_template` appropriately:
+
+.Hash case
+[source,id=hash-case]
+----
+when Hash
+  lang = line.fetch('language', '_')
+  lang = '_' unless @line_directive_template.key? lang
+  @active_line_directive_template.push @line_directive_template[lang]
+  line_directive_template_push += 1
 ----
 
 A `Cursor` always precedes the content lines it refers to.
@@ -349,18 +395,13 @@ compared to what has been output so far:
 when Asciidoctor::Reader::Cursor
   fname = line.file
   lineno = line.lineno + 1
-  output_line_directive(file, fname, lineno)
+  output_line_directive file, fname, lineno
 ----
 
 If the chunk element we're processing is a `String`, this can be either
 a reference to another chunk, or an actual content line. In both cases,
 we update the current origin line number `lineno`, so that the
 origin information is correct if we need to output a new line directive.
-
-In the reference case, we check for circular references or references to undefined chunks
-(raising appropriate exceptions), and then recurse into the referenced chunk.
-After returning from the referenced chunk, we output a new line directive,
-so that subsequent lines from the current chunk have correct origin information metadata.
 
 If the line is not a reference, we just output it as-is, preserving indent,
 except for empty strings, in which case the indent is not added.
@@ -372,15 +413,39 @@ when String
   lineno += 1
   ref, new_indent = is_chunk_ref line
   if ref
-    # must not be in the stack
-    raise RuntimeError, "Recursive reference to #{ref} from #{chunk_name}" if stack.include? ref
-    # must be defined
-    raise ArgumentError, "Found reference to undefined chunk #{ref}" unless @chunks.has_key? ref
-    recursive_tangle file, ref, indent + new_indent, @chunks[ref], stack
-    output_line_directive(file, fname, lineno)
+    <<Reference case>>
   else
     file.puts line.empty? ? line : indent + line
   end
+----
+
+In the reference case, we check for circular references or references to undefined chunks
+(raising appropriate exceptions), and then recurse into the referenced chunk.
+After returning from the referenced chunk, we output a new line directive,
+so that subsequent lines from the current chunk have correct origin information metadata.
+If the line directive template was change in the recursion,
+we pop it _after_ outputting the new line,
+under the assumption that the language change will not be in effect
+until the next actual line of output.
+
+[NOTE]
+The rationale for this is that language changes happen in embedded language context,
+with the fences delimiting the new language part of the block in the original language.
+An example of this is the CSS embedded by the <<docinfoproc,Docinfo Processor>>
+of this module.
+
+.Reference case
+[source]
+----
+# must not be in the stack
+raise RuntimeError, "Recursive reference to #{ref} from #{chunk_name}" if stack.include? ref
+# must be defined
+raise ArgumentError, "Found reference to undefined chunk #{ref}" unless @chunks.has_key? ref
+# recurse and get line directive stack growth
+to_pop = recursive_tangle file, ref, indent + new_indent, @chunks[ref], stack
+output_line_directive file, fname, lineno
+# pop line directive stack
+@active_line_directive_template.pop to_pop
 ----
 
 The recursive tangling process must be repeated for each root chunk defined by the document.
@@ -394,11 +459,13 @@ def tangle doc
   <<Prepare output directory>>
   @roots.each do |name, initial_chunk|
     if name == '*'
-      recursive_tangle STDOUT, name, '', initial_chunk, Set[]
+      to_pop = recursive_tangle STDOUT, name, '', initial_chunk, Set[]
+      @active_line_directive_template.pop to_pop
     else
       <<Convert name to full_path>>
       File.open(full_path, 'w') do |f|
-        recursive_tangle f, name, '', initial_chunk, Set[]
+        to_pop = recursive_tangle f, name, '', initial_chunk, Set[]
+        @active_line_directive_template.pop to_pop
       end
     end
   end
@@ -612,25 +679,30 @@ end
 ----
 
 For each block composing a chunk we want to keep track of where it was defined,
-so that this information can be added to the output file if requested.
-We do this by pushing the `source_location` metadata of each block
+so that this information can be added to the output file if requested,
+and also the source language for the block,
+to control the way the location is output.
+We do this by pushing the attribute and the `source_location` metadata of each block
 into the corresponding chunk `Array`, right before the corresponding lines:
 
 .Track source location...
 [source]
 ----
-chunk_hash[chunk_title].append(block.source_location)
+chunk_hash[chunk_title].append block.attributes
+chunk_hash[chunk_title].append block.source_location
 ----
 
-For this to work correctly, we need to enable the `sourcemap` feature for the document,
-which should be done at the preprocessing stage:
+The `source_location` is only tracked correctly when the `sourcemap` feature is enable for the document.
+This must be done at the preprocessing stage,
+during which we can also set the defaults for our custom attributes:
 
-.Enable sourcemap
+.Enable sourcemap and set default attributes
 [source]
 ----
 preprocessor do
   process do |doc, reader|
     doc.sourcemap = true
+    <<Set default attributes>>
     nil
   end
 end
@@ -958,7 +1030,7 @@ with Asciidoctor:
 <<Main class...>>
 
 Asciidoctor::Extensions.register do
-  <<Enable sourcemap>>
+  <<Enable sourcemap...>>
   tree_processor LiterateProgrammingTreeProcessor
   docinfo_processor LiterateProgrammingDocinfoProcessor
 end
@@ -993,9 +1065,9 @@ escaping of inline `<<`/`>>` pair as well as start-of-line `@` symbols
 
 `lineno` configuration::
 * [x] global setting implemented via `litprog-line-template` document attribute;
-* [ ] per-language overrides (possibly with good defaults);
+* [x] per-language overrides (possibly with good defaults);
 * [ ] per-file overrides;
-this should be doable adding other keys to the  `@line_directive` hash.
+this should be doable adding other keys to the `@line_directive_template` hash.
 
 auto-indent configuration::
 the preservation of leading whitespace during tangling should be optional
