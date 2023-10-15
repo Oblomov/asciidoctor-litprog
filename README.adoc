@@ -133,7 +133,7 @@ VERSION = '{revnumber}'
 The <<weaving>> process will introduce <<ref-to-ref,cross-referencing>> between the chunks
 as well as navigation links between blocks contributing to the same chunk.
 We want to be able to provide default styling for these links, which we can do using a
-`Docinfo` processor that will insert the needed CSS in the document head.
+https://docs.asciidoctor.org/asciidoctor/latest/extensions/docinfo-processor/[`Docinfo`] processor that will insert the needed CSS in the document head.
 
 .Main class...
 [source,id=docinfoproc]
