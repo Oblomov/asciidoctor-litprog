@@ -26,34 +26,43 @@ class LitProgRouge < (Asciidoctor::SyntaxHighlighter.for 'rouge')
 
   def create_formatter node, source, lang, opts
     formatter = super
+    # make the document catalog accessible to the formatter
     formatter.instance_variable_set :@litprog_catalog, node.document.catalog[:lit_prog_chunks]
+
     class << formatter
+      include Asciidoctor::Logging
       def litprog_link id, text
         target = '#' + id
         "<a class='litprog-nav' href='#{target}'>#{text}</a>"
       end
-      def safe_span tok, safe_val
+      def span tok, val
         special = tok.matches? ::Rouge::Token::Tokens::Comment::Special
         if special
-          m = safe_val.match /\&lt;\&lt;(.*)\&gt;\&gt;/
+          m = val.match /<<(.*)>>/
           if m
             title = m[1]
             pfx = title.chomp("...")
             if pfx != title
               fulltitle, hits = @litprog_catalog.find { |k, v| k.start_with? pfx }
-              fulltitle = fulltitle.gsub("'", '&quot;')
-              title = "<abbr title='#{fulltitle}'>#{title}</abbr>"
+              fulltitle = fulltitle.gsub("'", '&apos;')
+              title = "<abbr title='#{fulltitle}'>#{escape_special_html_chars title}</abbr>"
             else
               hits = @litprog_catalog[title]
+              title = escape_special_html_chars title
             end
-            first, *rest = *hits
-            safe_val = "&lt;&lt;" + litprog_link(first, title)
-            if rest.length > 0
-              safe_val += "<sup> " + rest.each_with_index.map { |hit, index|
-                litprog_link(hit, index+2)
-              }.join(' ') + "</sup>"
+            if hits.empty?
+              logger.warn "Unresolved chunk reference #{title.inspect} found in special comment while formatting source"
+            else
+              first, *rest = *hits
+              safe_val = "&lt;&lt;" + litprog_link(first, title)
+              if rest.length > 0
+                safe_val += "<sup> " + rest.each_with_index.map { |hit, index|
+                  litprog_link(hit, index+2)
+                }.join(' ') + "</sup>"
+              end
+              safe_val += "&gt;&gt;"
+              return safe_span tok, safe_val
             end
-            safe_val += "&gt;&gt;"
           end
         end
         super
@@ -74,7 +83,7 @@ end
 class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
   include Asciidoctor::Logging
 
-  VERSION = '2.1'
+  VERSION = '2.2'
   def initialize config = {}
     super config
     @roots = Hash.new { |hash, key| hash[key] = [] }
@@ -212,6 +221,19 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
       end
     end
   end
+  def weave doc
+    @chunk_blocks.each do |chunk_title, block_list|
+      last_block_index = block_list.size - 1
+      block_list.each_with_index do |block, i|
+        links = []
+        links << "xref:#{block_list[i-1].id}[⮝,role=prev]" if i > 0
+        links << "xref:#{block_list[i+1].id}[⮟,role=next]" if i != last_block_index
+        if links.length > 0
+          block.title = block.litprog_raw_title + ' [.litprog-nav]#' + (links * ' ') + '#'
+        end
+      end
+    end
+  end
   def add_to_chunk chunk_hash, chunk_title, block_lines
     @chunk_names.add chunk_title
     chunk_hash[chunk_title] += block_lines
@@ -264,19 +286,6 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
       add_chunk_id chunk_title, block
     end
   end
-  def weave doc
-    @chunk_blocks.each do |chunk_title, block_list|
-      last_block_index = block_list.size - 1
-      block_list.each_with_index do |block, i|
-        links = []
-        links << "xref:#{block_list[i-1].id}[⮝,role=prev]" if i > 0
-        links << "xref:#{block_list[i+1].id}[⮟,role=next]" if i != last_block_index
-        if links.length > 0
-          block.title = block.litprog_raw_title + ' [.litprog-nav]#' + (links * ' ') + '#'
-        end
-      end
-    end
-  end
   def process doc
     doc.catalog[:lit_prog_chunks] = Hash.new { |h, k| h[k] = [] }
     doc.find_by context: :listing do |block|
@@ -292,7 +301,7 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
   end
 end
 class LiterateProgrammingDocinfoProcessor < Asciidoctor::Extensions::DocinfoProcessor
-  VERSION = '2.1'
+  VERSION = '2.2'
 
   use_dsl
   at_location :head
