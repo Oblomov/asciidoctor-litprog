@@ -74,7 +74,7 @@ end
 class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
   include Asciidoctor::Logging
 
-  VERSION = '2.0'
+  VERSION = '2.1'
   def initialize config = {}
     super config
     @roots = Hash.new { |hash, key| hash[key] = [] }
@@ -292,7 +292,7 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
   end
 end
 class LiterateProgrammingDocinfoProcessor < Asciidoctor::Extensions::DocinfoProcessor
-  VERSION = '2.0'
+  VERSION = '2.1'
 
   use_dsl
   at_location :head
