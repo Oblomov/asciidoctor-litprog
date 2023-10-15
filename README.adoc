@@ -542,7 +542,7 @@ end
 We want to be able to reference blocks by the title of the chunk(s) they define,
 so we generate a chunk-specific ID and assign it to the block if appropriate.
 To generate the ID, we use the method Asciidoctor uses for sections,
-prepending `+_chunk+` and appending a sequential `+_block_+_N_` where _N_ is
+prepending `+_chunk+` and appending a sequential `+block_+‍__N__` where _N_ is
 an incremental number.
 
 To simplify management, we keep track of the blocks that contribute to each chunk:
@@ -953,8 +953,6 @@ end
 
 NOTE: this formatter only works as expected for HTML output.
 
-TODO: support other kinds of formatters
-
 .Custom formatter
 [source]
 ----
@@ -1076,3 +1074,6 @@ the preservation of leading whitespace during tangling should be optional
 selective writing::
 in particular, avoid overwriting the destination file if the content would be unchanged;
 this is important to support large-scale projects where we want to avoid recompiling unchanged modules.
+
+support other kinds of formatters::
+chunks will not be hyperlinked in syntax highlighters different from `rouge` presently.
