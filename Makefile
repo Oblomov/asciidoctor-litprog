@@ -3,8 +3,11 @@ README.html: README.adoc lib/lp-bootstrap.rb
 
 lib/litprog.rb: README.html
 
-update-bootstrap: lib/litprog.rb
-	grep -v '^#line' $< | grep -v '^/\*' > lib/lp-bootstrap.rb
+MAKE_BOOTSTRAP_ARGS= -a 'litprog-file-map=litprog.rb>lp-bootstrap.rb' \
+                     -a litprog-line-template= \
+                     -a litprog-line-template-css=
+update-bootstrap: test
+	asciidoctor --trace -Ilib -rlitprog.rb ${MAKE_BOOTSTRAP_ARGS} README.adoc -o README.html
 
 self-check: lib/litprog.rb
 	mv lib/litprog.rb lib/lp-test.rb && \
