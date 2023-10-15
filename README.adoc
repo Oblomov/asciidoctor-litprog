@@ -101,6 +101,8 @@ and remember to call the superclass' constructor
 [source]
 ----
 class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
+  include Asciidoctor::Logging
+
   <<Plugin version>>
   def initialize config = {}
     super config
@@ -449,6 +451,8 @@ output_line_directive file, fname, lineno
 ----
 
 The recursive tangling process must be repeated for each root chunk defined by the document.
+Each root chunk will use the root name as output file name,
+unless overridden.
 The special root chunk name `*` will indicate that the chunks have to be streamed to the standard output.
 
 .Tangling...
@@ -457,7 +461,9 @@ The special root chunk name `*` will indicate that the chunks have to be streame
 def tangle doc
   <<Set line directive>>
   <<Prepare output directory>>
+  <<Root name map creation>>
   @roots.each do |name, initial_chunk|
+    <<Remap file name if requested>>
     if name == '*'
       to_pop = recursive_tangle STDOUT, name, '', initial_chunk, Set[]
       @active_line_directive_template.pop to_pop
@@ -506,6 +512,62 @@ When tangling a new file, the name provided by the user is considered relative t
 ----
 full_path = File.join(outdir, name)
 ----
+
+==== Output file name mapping
+
+Root chunk names are used as output file names by default,
+but this behavior can be overridden on a name-by-name case
+by setting the `litprog-file-map` document attribute.
+If not empty, this is a colon-separated list of entries in the `chunk_name > file_name`.
+Whitespace around the file and chunk names is optional and will be stripped.
+The user is warned if either the chunk or file name is empty,
+and for any referenced root chunk name that was not found in the file.
+Identity maps (mapping the root chunk name to itself) are ignored.
+
+.Root name...
+[source]
+----
+root_name_map = {}
+doc.attr('litprog-file-map').to_s.split ':' do |entry|
+  entry.strip!
+  cname, fname = entry.split '>', 2
+  cname.strip!
+  fname.strip!
+  if cname.empty? or fname.empty?
+    logger.warn 'empty chunk name in litprog-file-map ignored' if cname.empty?
+    logger.warn 'empty file name in litprog-file-map ignored' if fname.empty?
+    next
+  end
+  unless @roots.include? cname
+    logger.warn "non-existent chunk #{cname} in litprog-file-map ignored"
+    next
+  end
+  next if cname == fname # nothing to remap
+  <<Check for fname uniqueness>>
+  root_name_map[cname] = fname
+end
+----
+
+We want output file names to be unique, both from each and from root chunk names.
+This is to avoid overwriting an output with the other.
+
+[NOTE,id=noswap]
+due to the way this check is done, it's not possible to _swap_
+two chunk names with a `A > B : B > A` file map.
+
+.Check for fname...
+[source]
+----
+raise ArgumentError, "#{cname} remapped to existing #{fname}" if @roots.include? fname
+mapped_already = root_name_map.key fname
+raise ArgumentError, "#{cname} remapped to #{fname}, same as #{mapped_already}" if mapped_already
+----
+
+Once the `root_name_map` hash is constructed, its use is trivia:
+
+.Remap...
+[source]
+name = root_name_map.fetch name, name
 
 
 === Collecting chunks [[collecting]]
@@ -1077,3 +1139,9 @@ this is important to support large-scale projects where we want to avoid recompi
 
 support other kinds of formatters::
 chunks will not be hyperlinked in syntax highlighters different from `rouge` presently.
+
+allow swapping file names in `litprog-file-map`:
+as pointed out <<noswap,in the relevant note>>, this is currently not supported
+due to the way the check for uniqueness is done,
+but could be supported with a smarter check.
+
