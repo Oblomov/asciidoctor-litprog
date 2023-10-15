@@ -90,8 +90,8 @@ The module is implemented as an https://docs.asciidoctor.org/asciidoctor/latest/
 Since we are only interested in producing secondary outputs, we implement a https://docs.asciidoctor.org/asciidoctor/latest/extensions/tree-processor/[`TreeProcessor`],
 that will traverse the document tree to gather all blocks that define chunks to be output to the secondary files.
 
-The processor needs to track some state, so it needs to override the default constructor (`initialize` method)
-to set things up properly.
+The processor needs to track some state,
+so it needs to override the default constructor (`initialize` method) to set things up properly.
 Asciidoctor's processors take a configuration `Hash` on construction,
 so we follow the convention, even though we do not (at present) make use of any configuration,
 and remember to call the superclass' constructor
