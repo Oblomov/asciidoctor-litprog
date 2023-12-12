@@ -28,7 +28,7 @@ test: self-check aweb-check
 update-bootstrap: lib/lp-bootstrap.rb
 
 clean:
-	rm -rf README.html lib/litprog.rb lib/lp-test.rb css test/aweb.result test/aweb.stdout
+	rm -rf README.html README.adoc.adot lib/litprog.rb lib/lp-test.rb css test/aweb.result test/aweb.stdout
 
 .PHONY: self-check test update-bootstrap clean
 
