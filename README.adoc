@@ -7,6 +7,7 @@ v2.2, 2023-10-15
 :icons: font
 :toc: left
 :litprog-outdir: lib/
+:lang: en
 // Styling
 :linkcss:
 :stylesdir: css
@@ -89,7 +90,7 @@ and may be subject to changes in the future.
 
 The module is implemented as an https://docs.asciidoctor.org/asciidoctor/latest/extensions/[Asciidoctor extension].
 Since we are mainly interested in producing secondary outputs,
-the core of thee module will be a https://docs.asciidoctor.org/asciidoctor/latest/extensions/tree-processor/[`TreeProcessor`],
+the core of the module will be a https://docs.asciidoctor.org/asciidoctor/latest/extensions/tree-processor/[`TreeProcessor`],
 that traverses the document tree to gather all blocks that define chunks to be output to the secondary files.
 
 The processor needs to track some state,
