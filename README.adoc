@@ -522,7 +522,7 @@ full_path = File.join(outdir, name)
 Root chunk names are used as output file names by default,
 but this behavior can be overridden on a name-by-name case
 by setting the `litprog-file-map` document attribute.
-If not empty, this is a colon-separated list of entries in the `chunk_name > file_name`.
+If not empty, this is a colon-separated list of entries in the `chunk_name > file_name` form.
 Whitespace around the file and chunk names is optional and will be stripped.
 The user is warned if either the chunk or file name is empty,
 and for any referenced root chunk name that was not found in the file.
@@ -552,7 +552,7 @@ doc.attr('litprog-file-map').to_s.split ':' do |entry|
 end
 ----
 
-We want output file names to be unique, both from each and from root chunk names.
+We want output file names to be unique, i.e. different both from other file names and from root chunk names.
 This is to avoid overwriting an output with the other.
 
 [NOTE,id=noswap]
@@ -567,7 +567,7 @@ mapped_already = root_name_map.key fname
 raise ArgumentError, "#{cname} remapped to #{fname}, same as #{mapped_already}" if mapped_already
 ----
 
-Once the `root_name_map` hash is constructed, its use is trivia:
+Once the `root_name_map` hash is constructed, its use is trivial:
 
 .Remap...
 [source]
