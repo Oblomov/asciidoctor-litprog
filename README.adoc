@@ -1156,8 +1156,20 @@ digraph {
 end
 ----
 
-Chunk names in the DOT file have to be properly quoted,
-and we limit their length to avoid the nodes in the graph from being too long.
+The DOT file uses the same symbolic naming convention as the block IDs,
+but without the block count.
+
+.Support...
+[source]
+----
+def dot_chunk_id doc, chunk_name
+  block_id = doc.catalog[:lit_prog_chunks][chunk_name].first
+  return block_id.gsub(/_block_\d+$/,'')
+end
+----
+
+Chunk names used as labels in the DOT file have to be properly quoted,
+and we limit their length to avoid the nodes in the graph from getting too long.
 This is achieved through two support functions that implement a trivial line-wrapping scheme
 and quoting mechanisms.
 
@@ -1186,16 +1198,16 @@ end
 ----
 
 The connections between the graphs are simply obtained iterating over the
-<<chunkdef,chunk references>>, making sure that the chunk names are properly quoted:
+<<chunkdef,chunk references>>, extracting the ID of both the referencing and referenced chunk.
 
 .Output DOT connections
 [source]
 ----
 @chunk_refs.each { |chunk, refs|
-  quoted_chunk = quote_for_dot chunk
+  this_id = dot_chunk_id doc, chunk
   refs.each { |ref|
-    quoted_ref = quote_for_dot ref
-    f.puts "#{quoted_ref}:e -> #{quoted_chunk}:w"
+    ref_id = dot_chunk_id doc, ref
+    f.puts "#{ref_id}:e -> #{this_id}:w"
   }
 }
 ----
@@ -1209,12 +1221,10 @@ we iterate the `@chunk_names` array.
 [source]
 ----
 @chunk_names.each { |chunk|
+  chunk_id = dot_chunk_id doc, chunk
   quoted_chunk = quote_for_dot chunk
-  if @roots.key? chunk
-    f.puts "#{quoted_chunk} [fontname=\"Monospace\"]"
-  else
-    f.puts "#{quoted_chunk}"
-  end
+  fontspec = @roots.key?(chunk) ? ",fontname=\"Monospace\"" : ""
+  f.puts "#{chunk_id} [label=#{quoted_chunk}#{fontspec}]"
 }
 ----
 
@@ -1326,6 +1336,6 @@ currently the graph output is very barebone. Several possible improvements inclu
 * [ ] customizable header
 * [ ] customizable node width (currently wrapping is hard-coded at 33)
 * [ ] take file mapping into consideration for the root chunks output
-* [ ] output chunks by their (HTML) ID and only quote/limit the label
+* [x] output chunks by their (HTML) ID and only quote/limit the label
 * [ ] output multi-block chunks differently from single-block ones (maybe as records?)
 * [ ] add links in the chunks to the source in the HTML documentation
