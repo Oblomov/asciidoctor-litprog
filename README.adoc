@@ -996,9 +996,10 @@ lexer = super
 class << lexer
   def step state, stream
     if state == get_state(:root) or stream.beginning_of_line?
-      if stream.scan /((?:^|[\r\n]+)\s*)(<<.*>>)\s*$/
+      if stream.scan /((?:^|[\r\n]+)\s*)(<<.*>>)(\s*)$/
         yield_token Text::Whitespace, stream.captures[0]
         yield_token Comment::Special, stream.captures[1]
+        yield_token Text::Whitespace, stream.captures[2]
         return true
       end
     end
