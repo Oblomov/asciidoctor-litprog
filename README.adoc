@@ -248,14 +248,16 @@ to be able to provide a relationship graph if requested.
 .Declare...
 [source]
 @chunk_refs = Hash.new { |hash, key| hash[key] = [] }
+@chunk_backrefs = Hash.new { |hash, key| hash[key] = [] }
 
-Updates to `@chunk_refs` are abstracted by the `add_chunk_ref` function:
+Updates to `@chunk_refs` and `@chunk_backrefs` are abstracted by the `add_chunk_ref` function:
 
 .Support...
 [source]
 ----
-def add_chunk_ref includer, included
+def add_chunk_ref includer, includer_block_id, included
   @chunk_refs[includer].push included
+  @chunk_backrefs[included].push [includer, includer_block_id]
 end
 ----
 
@@ -596,7 +598,6 @@ name = root_name_map.fetch name, name
 
 === Collecting chunks [[collecting]]
 
-
 ==== New style
 
 AsciiDoc's syntax allows us to forego special syntax to identify code chunks: we assume
@@ -613,11 +614,15 @@ without special-casing the case for the first block that defines a chunk.
 We also need to check if the new lines reference other chunks,
 and if so we add the title to the list of known titles,
 to allow shortened names to be used henceforth.
+This information can also be used for cross-referencing chunks,
+in which case the ID of the block is necessary to identify exactly
+which block in a chunk references another chunk.
+This block ID is described below.
 
 .Processing...
 [source]
 ----
-def add_to_chunk chunk_hash, chunk_title, block_lines
+def add_to_chunk chunk_hash, chunk_title, block_lines, block_id
   @chunk_names.add chunk_title
   chunk_hash[chunk_title] += block_lines
 
@@ -659,6 +664,7 @@ def add_chunk_id chunk_title, block
   block.document.register :refs, [new_id, block]
   block.id = new_id unless block.id
   block.document.catalog[:lit_prog_chunks][chunk_title] << new_id
+  return new_id
 end
 ----
 
@@ -696,8 +702,8 @@ def process_source_block block
   end
   <<Track source location information>>
   block_lines = apply_supported_subs block
-  add_to_chunk chunk_hash, chunk_title, block_lines
-  add_chunk_id chunk_title, block
+  block_id = add_chunk_id chunk_title, block
+  add_to_chunk chunk_hash, chunk_title, block_lines, block_id
 end
 ----
 
@@ -762,7 +768,7 @@ block_lines.each do |line|
   mentioned, _ = is_chunk_ref line
   if mentioned
     @chunk_names.add mentioned
-    add_chunk_ref chunk_title, mentioned
+    add_chunk_ref chunk_title, block_id, mentioned
   end
 end
 ----
@@ -861,8 +867,8 @@ end.each do |lines|
   chunk_hash = @chunks
   <<Detect legacy chunk type>>
   <<Track legacy chunk location information>>
-  add_to_chunk chunk_hash, chunk_title, block_lines
-  add_chunk_id chunk_title, block
+  block_id = add_chunk_id chunk_title, block
+  add_to_chunk chunk_hash, chunk_title, block_lines, block_id
 end
 ----
 
