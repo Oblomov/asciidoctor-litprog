@@ -933,16 +933,29 @@ end
 ----
 
 The chunk navigation links are added to the title of the block if there are
-preceding/following blocks in the same list:
+preceding/following blocks in the same list, and/or if another chunk is including this one:
 
 .Add chunk nav...
 [source]
 ----
 links = []
-links << "xref:#{block_list[i-1].id}[⮝,role=prev]" if i > 0
-links << "xref:#{block_list[i+1].id}[⮟,role=next]" if i != last_block_index
+links << "xref:\##{block_list[i-1].id}[⮝,role=prev]" if i > 0
+links << "xref:\##{block_list[i+1].id}[⮟,role=next]" if i != last_block_index
+if @chunk_backrefs.key? chunk_title
+  for inc in @chunk_backrefs[chunk_title]
+    includer, includer_block_id = inc
+    includer_block_num = includer_block_id.split('_').last
+    desc = "Used in: #{includer} [#{includer_block_num}]"
+    links.unshift '|' if links.length > 0
+    # TODO apparently AsciiDoc(tor) doesn't support anchor titles?
+    # links.unshift "xref:\##{includer_block_id}[⏚,role=up,title=\"${desc}\"]"
+    desc.gsub!("'",'&apos;')
+    links.unshift "+++<a href='\##{includer_block_id}' class='up' title='#{desc}'>⏚</a>+++"
+  end
+end
 if links.length > 0
-  block.title = block.litprog_raw_title + ' [.litprog-nav]#' + (links * ' ') + '#'
+  # protect against a nil title ---------v
+  block.title = (block.litprog_raw_title || '') + ' [.litprog-nav]#' + (links * ' ') + '#'
 end
 ----
 
@@ -1307,9 +1320,6 @@ allow swapping file names in `litprog-file-map`::
 as pointed out <<noswap,in the relevant note>>, this is currently not supported
 due to the way the check for uniqueness is done,
 but could be supported with a smarter check.
-
-cross-reference chunk usage::
-in the chunk navigation it would be interesting to have links to where the chunk is used.
 
 graph output tuning:: [[graph-todo]]
 currently the graph output is very barebone. Several possible improvements include:
