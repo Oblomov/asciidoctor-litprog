@@ -1168,10 +1168,23 @@ def dot_chunk_id doc, chunk_name
 end
 ----
 
+We use `record` structures in DOT, to identify chunks composed of multiple blocks.
+For this, we need to frequently determine how many blocks a chunk is composed of.
+
+.Support...
+[source]
+----
+def count_chunk_blocks doc, chunk_name
+  doc.catalog[:lit_prog_chunks][chunk_name].length
+end
+----
+
 Chunk names used as labels in the DOT file have to be properly quoted,
 and we limit their length to avoid the nodes in the graph from getting too long.
-This is achieved through two support functions that implement a trivial line-wrapping scheme
-and quoting mechanisms.
+
+The wrap-around is implemented by adding newlines whenever adding a word to
+a non-empty line would exceed the line length.
+The “non-empty line” condition is added to allow words longer than the limit to be added.
 
 .Support...
 [source]
@@ -1191,28 +1204,46 @@ def limit_line_length text, maxlen
   ret.push line
   ret.join("\\n")
 end
+----
 
-def quote_for_dot text
-  '"' + limit_line_length(text, 33).gsub('"', '\"') + '"'
+Quoting actually does more than just quoting: it also adds the record structure
+for chunks composed by multiple blocks:
+
+.Support...
+[source]
+----
+def quote_for_dot doc, chunk_name
+  nblocks = count_chunk_blocks doc, chunk_name
+  # start by escaping the name proper
+  base = limit_line_length(chunk_name, 33).gsub('["<>|]', '\\\0')
+  # add a <chunk> port to the base name
+  base = "<chunk> #{base}"
+  # add the other ports for multi-block chunks
+  if nblocks > 1
+    base += "| { " + 1.upto(nblocks).map { |i| "<block_#{i}> #{i}" }.join(' | ') + " }"
+  end
+  return '"' + base + '"'
 end
 ----
 
 The connections between the graphs are simply obtained iterating over the
-<<chunkdef,chunk references>>, extracting the ID of both the referencing and referenced chunk.
+<<chunkdef,chunk references>>, extracting the ID of both the referencing and referenced chunk,
+and connecting the primary record of the referenced chunk to the appropriate block record of the referencing chunk.
 
 .Output DOT connections
 [source]
 ----
-@chunk_refs.each { |chunk, refs|
+@chunk_backrefs.each { |chunk, refs|
   this_id = dot_chunk_id doc, chunk
-  refs.each { |ref|
+  refs.each { |ref, block_id|
     ref_id = dot_chunk_id doc, ref
-    f.puts "#{ref_id}:e -> #{this_id}:w"
+    port = count_chunk_blocks(doc, ref) == 1 ? "chunk" : block_id.match(/block_\d+$/)[0]
+    f.puts "#{this_id}:chunk:e -> #{ref_id}:#{port}:w"
   }
 }
 ----
 
-Chunks are output to the DOT file again with proper quoting,
+Chunk node definitions are output to the DOT file after all connections, with proper quoting,
 and forcing a monospace font for the root chunks.
 Since for code chunks we want to output the full (quoted, wrapped) chunk names,
 we iterate the `@chunk_names` array.
@@ -1222,9 +1253,9 @@ we iterate the `@chunk_names` array.
 ----
 @chunk_names.each { |chunk|
   chunk_id = dot_chunk_id doc, chunk
-  quoted_chunk = quote_for_dot chunk
+  quoted_chunk = quote_for_dot doc, chunk
   fontspec = @roots.key?(chunk) ? ",fontname=\"Monospace\"" : ""
-  f.puts "#{chunk_id} [label=#{quoted_chunk}#{fontspec}]"
+  f.puts "#{chunk_id} [shape=record,label=#{quoted_chunk}#{fontspec}]"
 }
 ----
 
@@ -1337,5 +1368,5 @@ currently the graph output is very barebone. Several possible improvements inclu
 * [ ] customizable node width (currently wrapping is hard-coded at 33)
 * [ ] take file mapping into consideration for the root chunks output
 * [x] output chunks by their (HTML) ID and only quote/limit the label
-* [ ] output multi-block chunks differently from single-block ones (maybe as records?)
+* [x] output multi-block chunks differently from single-block ones (maybe as records?)
 * [ ] add links in the chunks to the source in the HTML documentation
