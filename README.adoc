@@ -243,20 +243,19 @@ by storing the corresponding `Cursor` before the corresponding lines,
 as detailed in the <<collecting>> section.
 
 We also track separately which chunks are referred to by which other chunks
+(and in which block)
 to be able to provide a relationship graph if requested.
 
 .Declare...
 [source]
-@chunk_refs = Hash.new { |hash, key| hash[key] = [] }
 @chunk_backrefs = Hash.new { |hash, key| hash[key] = [] }
 
-Updates to `@chunk_refs` and `@chunk_backrefs` are abstracted by the `add_chunk_ref` function:
+Updates to `@chunk_backrefs` are abstracted by the `add_chunk_ref` function:
 
 .Support...
 [source]
 ----
 def add_chunk_ref includer, includer_block_id, included
-  @chunk_refs[includer].push included
   @chunk_backrefs[included].push [includer, includer_block_id]
 end
 ----
