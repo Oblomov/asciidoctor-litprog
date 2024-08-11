@@ -945,7 +945,8 @@ links << "xref:\##{block_list[i-1].id}[⮝,role=prev]" if i > 0
 links << "xref:\##{block_list[i+1].id}[⮟,role=next]" if i != last_block_index
 # link to block(s) that include the chunk this block belongs to
 if @chunk_backrefs.key? chunk_title
-  for inc in @chunk_backrefs[chunk_title]
+  # uplinks are placed using unshift, so process them in reverse order
+  @chunk_backrefs[chunk_title].reverse_each do |inc|
     includer, includer_block_id = inc
     if count_chunk_blocks(doc, includer) > 1
       includer_block_num = includer_block_id.split('_').last
