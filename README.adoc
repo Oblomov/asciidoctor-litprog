@@ -71,7 +71,7 @@ In particular, this means that a source line is _either_ a chunk reference (opti
 _or_ a text line (to be taken verbatim), and that an _at_ symbol (`@`) at the beginning of the line has no special meaning.
 
 The downside of this simplified syntax, aside from the restriction about chunk reference usage, is that there is no markup
-to indicate definition and usage of symbols. The upside is that the `aweb` virtually eliminates the need for escaping
+to indicate definition and usage of symbols. The upside is that the `aweb` syntax virtually eliminates the need for escaping
 chunk references or `@` symbols.
 
 (It is also impossible to have an actual code line that begins with `<<` and ends with `>>`, so if your language needs those,
