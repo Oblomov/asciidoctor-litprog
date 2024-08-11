@@ -1153,11 +1153,12 @@ end
 
 ==== Producing the reference graph [[graph]]
 
-If the `litprog-dot-graph` attribute is set, we produce a {url-dot}[DOT] source,
-named after the document source with a `.dot` extension appended,
-that describes the inclusion graph between the chunks.
-The graph is output with a left-to-right orientation,
-with included chunks on the left and including chunks on the right.
+If the `litprog-dot-graph` attribute is set,
+we produce in the output directory a {url-dot}[DOT] source,
+named after the document source, with a `.litprog.dot` extension.
+This DOT file describes the inclusion graph between the chunks,
+output with a left-to-right orientation
+(included chunks on the left and including chunks on the right).
 
 IMPORTANT: The mechanism is currently very barebone.
 Several possible improvements that are being considered are presented <<graph-todo,in the TODO list>>.
@@ -1166,7 +1167,9 @@ Several possible improvements that are being considered are presented <<graph-to
 .Output chunk reference graph
 [source]
 ----
-File.open(doc.attr('docfile') + '.dot', 'w') do |f|
+dotfile = doc.attr('docname') + '.litprog.dot'
+dotdir = doc.attr('outdir', '.', 'docdir')
+File.open(File.join(dotdir, dotfile), 'w') do |f|
   f.puts %(
 digraph {
   rankdir=LR;
