@@ -932,19 +932,27 @@ end
 ----
 
 The chunk navigation links are added to the title of the block if there are
-preceding/following blocks in the same list, and/or if another chunk is including this one:
+preceding/following blocks in the same list.
+We also include a link to the chunk block(s) that include the chunk this block belongs to.
 
 .Add chunk nav...
 [source]
 ----
 links = []
+# link to previous block in this chunk
 links << "xref:\##{block_list[i-1].id}[⮝,role=prev]" if i > 0
+# link to next block in this chunk
 links << "xref:\##{block_list[i+1].id}[⮟,role=next]" if i != last_block_index
+# link to block(s) that include the chunk this block belongs to
 if @chunk_backrefs.key? chunk_title
   for inc in @chunk_backrefs[chunk_title]
     includer, includer_block_id = inc
-    includer_block_num = includer_block_id.split('_').last
-    desc = "Used in: #{includer} [#{includer_block_num}]"
+    if count_chunk_blocks(doc, includer) > 1
+      includer_block_num = includer_block_id.split('_').last
+      desc = "Used in: #{includer} [#{includer_block_num}]"
+    else
+      desc = "Used in: #{includer}"
+    end
     links.unshift '|' if links.length > 0
     # TODO apparently AsciiDoc(tor) doesn't support anchor titles?
     # links.unshift "xref:\##{includer_block_id}[⏚,role=up,title=\"${desc}\"]"
