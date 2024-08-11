@@ -1,4 +1,4 @@
-# Copyright (C) 2021–2023 Giuseppe Bilotta <giuseppe.bilotta@gmail.com>
+# Copyright (C) 2021–2024 Giuseppe Bilotta <giuseppe.bilotta@gmail.com>
 # This software is licensed under the MIT license. See LICENSE for details
 
 require 'asciidoctor/extensions'
@@ -12,9 +12,10 @@ class LitProgRouge < (Asciidoctor::SyntaxHighlighter.for 'rouge')
     class << lexer
       def step state, stream
         if state == get_state(:root) or stream.beginning_of_line?
-          if stream.scan /((?:^|[\r\n]+)\s*)(<<.*>>)\s*$/
+          if stream.scan /((?:^|[\r\n]+)\s*)(<<.*>>)(\s*)$/
             yield_token Text::Whitespace, stream.captures[0]
             yield_token Comment::Special, stream.captures[1]
+            yield_token Text::Whitespace, stream.captures[2]
             return true
           end
         end
@@ -83,12 +84,13 @@ end
 class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
   include Asciidoctor::Logging
 
-  VERSION = '2.2'
+  VERSION = '2.3'
   def initialize config = {}
     super config
     @roots = Hash.new { |hash, key| hash[key] = [] }
     @chunks = Hash.new { |hash, key| hash[key] = [] }
     @chunk_names = Set.new
+    @chunk_backrefs = Hash.new { |hash, key| hash[key] = [] }
     @line_directive_template = { }
     @active_line_directive_template = []
     @chunk_blocks = Hash.new { |hash, key| hash[key] = [] }
@@ -103,6 +105,9 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
     raise ArgumentError, "Chunk title #{string} is not unique" if hits.length > 1
     hits.first
   end
+  def add_chunk_ref includer, includer_block_id, included
+    @chunk_backrefs[included].push [includer, includer_block_id]
+  end
   def output_line_directive file, fname, lineno
     template = @active_line_directive_template.last
     file.puts( template % { line: lineno, file: fname}) unless template.nil_or_empty?
@@ -114,7 +119,7 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
       return false
     end
   end
-  def add_chunk_id chunk_title, block
+  def add_chunk_block_with_id chunk_title, block
     block_count = @chunk_blocks[chunk_title].append(block).size
     title_for_id = "_chunk_#{chunk_title}_block_#{block_count}"
     new_id = Asciidoctor::Section.generate_id title_for_id, block.document
@@ -122,6 +127,10 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
     block.document.register :refs, [new_id, block]
     block.id = new_id unless block.id
     block.document.catalog[:lit_prog_chunks][chunk_title] << new_id
+    return new_id
+  end
+  def remap_chunk_block_id doc, chunk_block_id
+    return doc.catalog[:refs][chunk_block_id].id
   end
   def apply_supported_subs block
     if block.subs.include? :attributes
@@ -129,6 +138,40 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
     else
        block.lines
     end
+  end
+  def dot_chunk_id doc, chunk_name
+    block_id = doc.catalog[:lit_prog_chunks][chunk_name].first
+    return block_id.gsub(/_block_\d+$/,'')
+  end
+  def count_chunk_blocks doc, chunk_name
+    doc.catalog[:lit_prog_chunks][chunk_name].length
+  end
+  def limit_line_length text, maxlen
+    words = text.split ' '
+    ret = []
+    line = ''
+    words.each { |word|
+      if line.length > 0 and line.length + word.length > maxlen
+        ret.push line
+        line = ''
+      end
+      line += ' ' if line.length > 0
+      line += word
+    }
+    ret.push line
+    ret.join("\\n")
+  end
+  def quote_for_dot doc, chunk_name
+    nblocks = count_chunk_blocks doc, chunk_name
+    # start by escaping the name proper
+    base = limit_line_length(chunk_name, 33).gsub('["<>|]', '\\\0')
+    # add a <chunk> port to the base name
+    base = "<chunk> #{base}"
+    # add the other ports for multi-block chunks
+    if nblocks > 1
+      base += "| { " + 1.upto(nblocks).map { |i| "<block_#{i}> #{i}" }.join(' | ') + " }"
+    end
+    return '"' + base + '"'
   end
   def recursive_tangle file, chunk_name, indent, chunk, stack
     stack.add chunk_name
@@ -226,21 +269,76 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
       last_block_index = block_list.size - 1
       block_list.each_with_index do |block, i|
         links = []
-        links << "xref:#{block_list[i-1].id}[⮝,role=prev]" if i > 0
-        links << "xref:#{block_list[i+1].id}[⮟,role=next]" if i != last_block_index
+        # link to previous block in this chunk
+        links << "xref:\##{block_list[i-1].id}[⮝,role=prev]" if i > 0
+        # link to next block in this chunk
+        links << "xref:\##{block_list[i+1].id}[⮟,role=next]" if i != last_block_index
+        # link to block(s) that include the chunk this block belongs to
+        if @chunk_backrefs.key? chunk_title
+          # uplinks are placed using unshift, so process them in reverse order
+          @chunk_backrefs[chunk_title].reverse_each do |inc|
+            includer, includer_block_id = inc
+            if count_chunk_blocks(doc, includer) > 1
+              includer_block_num = includer_block_id.split('_').last
+              desc = "Used in: #{includer} [#{includer_block_num}]"
+            else
+              desc = "Used in: #{includer}"
+            end
+            # remap from the chunk-specific block ID to the Asciidoctor block ID
+            includer_block_id = remap_chunk_block_id doc, includer_block_id
+            links.unshift '|' if links.length > 0
+            # TODO apparently AsciiDoc(tor) doesn't support anchor titles?
+            # links.unshift "xref:\##{includer_block_id}[⏚,role=up,title=\"${desc}\"]"
+            desc.gsub!("'",'&apos;')
+            links.unshift "+++<a href='\##{includer_block_id}' class='up' title='#{desc}'>⏚</a>+++"
+          end
+        end
         if links.length > 0
-          block.title = block.litprog_raw_title + ' [.litprog-nav]#' + (links * ' ') + '#'
+          # protect against a nil title ---------v
+          block.title = (block.litprog_raw_title || '') + ' [.litprog-nav]#' + (links * ' ') + '#'
         end
       end
     end
+    if doc.attr('litprog-dot-graph')
+      dotfile = doc.attr('docname') + '.litprog.dot'
+      dotdir = doc.attr('outdir', '.', 'docdir')
+      File.open(File.join(dotdir, dotfile), 'w') do |f|
+        f.puts %(
+      digraph {
+        rankdir=LR;
+        nodesep="1";
+        overlap=false;
+      )
+
+        @chunk_backrefs.each { |chunk, refs|
+          this_id = dot_chunk_id doc, chunk
+          refs.each { |ref, block_id|
+            ref_id = dot_chunk_id doc, ref
+            port = count_chunk_blocks(doc, ref) == 1 ? "chunk" : block_id.match(/block_\d+$/)[0]
+            f.puts "#{this_id}:chunk:e -> #{ref_id}:#{port}:w"
+          }
+        }
+        @chunk_names.each { |chunk|
+          chunk_id = dot_chunk_id doc, chunk
+          quoted_chunk = quote_for_dot doc, chunk
+          fontspec = @roots.key?(chunk) ? ",fontname=\"Monospace\"" : ""
+          f.puts "#{chunk_id} [shape=record,label=#{quoted_chunk}#{fontspec}]"
+        }
+
+        f.puts '}'
+      end
+    end
   end
-  def add_to_chunk chunk_hash, chunk_title, block_lines
+  def add_to_chunk chunk_hash, chunk_title, block_lines, block_id
     @chunk_names.add chunk_title
     chunk_hash[chunk_title] += block_lines
 
     block_lines.each do |line|
       mentioned, _ = is_chunk_ref line
-      @chunk_names.add mentioned if mentioned
+      if mentioned
+        @chunk_names.add mentioned
+        add_chunk_ref chunk_title, block_id, mentioned
+      end
     end
   end
   def process_source_block block
@@ -258,8 +356,8 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
     chunk_hash[chunk_title].append block.attributes
     chunk_hash[chunk_title].append block.source_location
     block_lines = apply_supported_subs block
-    add_to_chunk chunk_hash, chunk_title, block_lines
-    add_chunk_id chunk_title, block
+    block_id = add_chunk_block_with_id chunk_title, block
+    add_to_chunk chunk_hash, chunk_title, block_lines, block_id
   end
   CHUNK_DEF_RX = /^<<(.*)>>=\s*$/
   def process_listing_block block
@@ -282,8 +380,8 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
       chunk_location.advance(chunk_offset + 1)
       chunk_hash[chunk_title].append(chunk_location)
       chunk_offset += lines.size
-      add_to_chunk chunk_hash, chunk_title, block_lines
-      add_chunk_id chunk_title, block
+      block_id = add_chunk_block_with_id chunk_title, block
+      add_to_chunk chunk_hash, chunk_title, block_lines, block_id
     end
   end
   def process doc
@@ -301,7 +399,7 @@ class LiterateProgrammingTreeProcessor < Asciidoctor::Extensions::TreeProcessor
   end
 end
 class LiterateProgrammingDocinfoProcessor < Asciidoctor::Extensions::DocinfoProcessor
-  VERSION = '2.2'
+  VERSION = '2.3'
 
   use_dsl
   at_location :head

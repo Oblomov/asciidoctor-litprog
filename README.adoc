@@ -1,6 +1,6 @@
 = Asciidoctor Literate Programming extension
 Giuseppe Bilotta <giuseppe.bilotta@gmail.com>
-v2.2, 2023-10-15
+v2.3, 2024-08-11
 // Settings
 :sectnums:
 :sectanchors:
@@ -1340,13 +1340,13 @@ end
 
 == Copyright and licensing information
 
-The software is copyright (C) 2021–2023 by {author}, and is made available under the MIT license.
+The software is copyright (C) 2021–2024 by {author}, and is made available under the MIT license.
 See the link:LICENSE[] file for further details.
 
 .Licensing...
 [source,id=licensing-statement,subs='+attributes']
 ----
-# Copyright (C) 2021–2023 {author} <{email}>
+# Copyright (C) 2021–2024 {author} <{email}>
 # This software is licensed under the MIT license. See LICENSE for details
 ----
 
