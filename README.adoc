@@ -631,9 +631,6 @@ end
 
 We want to be able to reference blocks by the title of the chunk(s) they define,
 so we generate a chunk-specific ID and assign it to the block if appropriate.
-To generate the ID, we use the method Asciidoctor uses for sections,
-prepending `+_chunk+` and appending a sequential `+block_+‍__N__` where _N_ is
-an incremental number.
 
 To simplify management, we keep track of the blocks that contribute to each chunk:
 
@@ -648,14 +645,18 @@ to trivially reconstruct the whole chunk contents with origin information.
 However, since the <<legacy-compat,“legacy” `aweb` syntax>> has a more complex many-to-many correspondence between chunks and blocks,
 we need to separate the two pieces of information.
 
-To add a chunk ID, we first add the block to the list of blocks for that chunk (so the incremental number is 1-based),
-and then generate the new chunk ID, registering it with the document, and if appropriate adding it to the block.
-The map between title and chunk ID is also registered in the document catalog, for use in the weaving process.
+The chunk-specific block ID is always generated when a block is added to a chunk,
+but since Asciidoctor does not support having multiple IDs referring to the same block,
+it is assigned as the block ID only if the block does not already have a user-defined ID.
+The chunk-specific ID is generated using the method Asciidoctor uses for sections,
+but prepending `+_chunk+` and appending a sequential `+block_+‍__N__` where _N_ is
+the sequential block number (1-based, computed after appending the current block to the `@chunk_blocks`).
+The map between title and block ID is also registered in the document catalog, for use in the weaving process.
 
 .Support...
 [source]
 ----
-def add_chunk_id chunk_title, block
+def add_chunk_block_with_id chunk_title, block
   block_count = @chunk_blocks[chunk_title].append(block).size
   title_for_id = "_chunk_#{chunk_title}_block_#{block_count}"
   new_id = Asciidoctor::Section.generate_id title_for_id, block.document
@@ -664,6 +665,18 @@ def add_chunk_id chunk_title, block
   block.id = new_id unless block.id
   block.document.catalog[:lit_prog_chunks][chunk_title] << new_id
   return new_id
+end
+----
+
+NOTE: since the chunk-specific block ID is only assigned to the block if it doesn't have an ID already,
+it should not be used in cross-references directly.
+An auxiliary function is defined to help remap from the chunk-based ID to the Asciidoctor ID
+
+.Support...
+[source]
+----
+def remap_chunk_block_id doc, chunk_block_id
+  return doc.catalog[:refs][chunk_block_id].id
 end
 ----
 
@@ -701,7 +714,7 @@ def process_source_block block
   end
   <<Track source location information>>
   block_lines = apply_supported_subs block
-  block_id = add_chunk_id chunk_title, block
+  block_id = add_chunk_block_with_id chunk_title, block
   add_to_chunk chunk_hash, chunk_title, block_lines, block_id
 end
 ----
@@ -866,7 +879,7 @@ end.each do |lines|
   chunk_hash = @chunks
   <<Detect legacy chunk type>>
   <<Track legacy chunk location information>>
-  block_id = add_chunk_id chunk_title, block
+  block_id = add_chunk_block_with_id chunk_title, block
   add_to_chunk chunk_hash, chunk_title, block_lines, block_id
 end
 ----
@@ -933,7 +946,9 @@ end
 
 The chunk navigation links are added to the title of the block if there are
 preceding/following blocks in the same list.
-We also include a link to the chunk block(s) that include the chunk this block belongs to.
+We also include a link to the chunk block(s) that include the chunk this block belongs to:
+for these, we have to remeber that the chunk-specific block ID may not correspond to the
+actual block ID known to Asciidoctor.
 
 .Add chunk nav...
 [source]
@@ -954,6 +969,8 @@ if @chunk_backrefs.key? chunk_title
     else
       desc = "Used in: #{includer}"
     end
+    # remap from the chunk-specific block ID to the Asciidoctor block ID
+    includer_block_id = remap_chunk_block_id doc, includer_block_id
     links.unshift '|' if links.length > 0
     # TODO apparently AsciiDoc(tor) doesn't support anchor titles?
     # links.unshift "xref:\##{includer_block_id}[⏚,role=up,title=\"${desc}\"]"
