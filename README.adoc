@@ -1352,7 +1352,20 @@ See the link:LICENSE[] file for further details.
 
 == Missing features and known issues
 
-// I would have loved to use description checklists, but Asciidoctor doesn't seem to support those yet ...
+=== Known issue
+
+Known issues and limitations so far:
+
+* we need to monkey-patch the `Block` class to access raw (unconverted) titles
+* conversion of chunk references to hyperlinks during weaving is specific to the syntax highlighter;
+currently we only support the `rogue` syntax highlighter
+* other aspects of the weaving process introduce converter-specific output. These include:
++
+** uplinks to including chunks (due to a limitation in Asciidoctor's link management that prevents adding a `title` attribute for tooltips)
+** links to the included chunks within `source` blocks
+** expansion of abbreviate chunk titles to the full form in `source` blocks
++
+For these features, the only supported converter is the HTML converter.
 
 === TODO list
 
