@@ -178,7 +178,7 @@ Since the source code associated with a generic chunk can be spread out over mul
 we define a default value constructor for `@chunks`: this will simplify the
 process of appending new lines to a value each time we come across a new block.
 
-The root chunk is assumed to be unique per file (i.e. per title),
+The root chunk is assumed to be unique per output file (i.e. per title),
 but we still provide the same default value constructor,
 since this will allow us to handle the extraction in the same way for both types.
 Uniqueness of root chunks will be handled explicitly during block processing.
