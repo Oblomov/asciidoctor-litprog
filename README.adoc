@@ -4,12 +4,18 @@ v2.3, 2024-08-11
 // Settings
 :sectnums:
 :sectanchors:
-:icons: font
 :toc: left
 :litprog-outdir: lib/
 :litprog-dot-graph:
 :lang: en
 // Styling
+:docinfo: shared-head
+:webfonts!:
+:note-caption: i
+:important-caption: ❗︎
+:caution-caption: ☡
+:warning-caption: ⚠
+:tip-caption: 💡︎
 :linkcss:
 :stylesdir: css
 :source-highlighter: rouge
