@@ -1,5 +1,6 @@
 lib/litprog.rb
 README.html
+README.litprog.dot
 css
 
 test/aweb.result
